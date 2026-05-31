@@ -1,0 +1,18 @@
+[package]
+name = "silq"
+version = "0.1.0"
+edition = "2021"
+description = "Silq quantum programming language - Rust implementation"
+license = "BSL-1.0"
+repository = "https://github.com/tgehr/silq"
+
+[[bin]]
+name = "silq"
+path = "src/main.rs"
+
+[dependencies]
+num-complex = "0.4"
+num-traits = "0.2"
+num-bigint = "0.4"
+itertools = "0.13"
+colored = "2"

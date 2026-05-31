@@ -1,0 +1,487 @@
+// prelude file implicitly imported into all silq programs
+
+def dup[τ:*](const x: τ) @[artificial] qfree: τ {
+	def impl[τ](const x: τ) @[extern="primitive.dup"] qfree: τ;
+	return impl[τ](x);
+}
+def measure[τ](x: τ) @[artificial] wild {
+	def impl[τ](x: τ) @[extern="primitive.M"] wild: !τ;
+	return impl[τ](x);
+}
+def H(x: 𝔹) @[extern="primitive.H"] mfree: 𝔹;
+def X(x: 𝔹) @[extern="primitive.X"] qfree: 𝔹;
+def Y(x: 𝔹) @[extern="primitive.Y"] mfree: 𝔹;
+def Z(x: 𝔹) @[extern="primitive.Z"] mfree: 𝔹;
+def phase(const φ: !ℝ) @[extern="primitive.P"] mfree: 𝟙;
+def rotX(const φ: !ℝ, x: 𝔹) @[extern="primitive.rX"] mfree: 𝔹;
+def rotY(const φ: !ℝ, x: 𝔹) @[extern="primitive.rY"] mfree: 𝔹;
+def rotZ(const φ: !ℝ, x: 𝔹) @[artificial] mfree: 𝔹 {
+	def impl(const φ: !ℝ, const x: 𝔹) @[extern="primitive.rZ"] mfree: 𝟙;
+	impl(φ, x);
+	return x;
+}
+
+def I(x:𝔹) @[artificial] qfree ⇒ x;
+def S(x:𝔹) @[artificial] mfree{
+	if x { phase(π/2); }
+	return x;
+}
+def T(x:𝔹) @[artificial] mfree{
+	if x { phase(π/4); }
+	return x;
+}
+def CNOT(const x:𝔹,y:𝔹) @[artificial] qfree{
+	y⊕=x;
+	return y;
+}
+def reverse[τ:*,χ:qtype,φ:*](const f: const τ×χ →mfree φ)(const c: τ, x:φ) @artificial mfree: χ{
+	f(c,y):=x;
+	return y;
+}
+def __reverse_qfree[τ:*,χ:qtype,φ:*](const f: const τ×χ →qfree φ)(const c: τ, x:φ) @artificial qfree: χ{ // TODO: use attribute polymorphism instead
+	f(c,y):=x;
+	return y;
+}
+
+dat int[n: !ℕ] quantum{}
+dat uint[n: !ℕ] quantum{}
+// dat float[e: !ℕ, m: !ℕ] quantum{}
+// float32:=float[8,24];
+// float64:=float[11,53];
+// dat rat[n: !ℕ, m: !ℕ] quantum{}
+
+dat ℤmod[N:!ℕ] quantum{}
+dat ℤstar[N:!ℕ] quantum{}
+Zmod:=ℤmod;
+Zstar:=ℤstar;
+
+type:=*;
+
+𝟘:=⊥;
+bottom:=⊥;
+never:=⊥;
+
+unit:=𝟙;
+
+B:=𝔹;
+bool:=𝔹;
+Bool:=!𝔹;
+
+N:=ℕ;
+Nat:=!ℕ;
+
+// Z:=ℤ; // HACK: handled as negation on the Z gate.
+Int:=!ℤ;
+
+Q:=ℚ;
+Rat:=!ℚ;
+
+R:=ℝ;
+Real:=!ℝ;
+
+C:=ℂ;
+Complex:=!ℂ;
+
+// deterministic functions
+def gcd(a:!ℤ,b:!ℤ) @[extern="primitive.int.gcd"] qfree: !ℕ;
+def pow_mod(a:!ℤ,e:!ℤ,m:!ℕ){
+	if e < 0 {
+		def egcd(a:!ℤ,b:!ℤ){
+			(x,y,u,v):=(a,b,1,0):!ℤ^4;
+			while y≠0{
+				(x,y,u,v)=(y,x%y,v,u-(x div y)·v);
+			}
+			return (x,u);
+		}
+		(d,ia):=egcd(a,m);
+		assert(d=1);
+		(a,e)=(ia,-e);
+	}
+	r:=1;
+	x:=a;
+	while e≠0{
+		if e&1{
+			r=r*x%m;
+		}
+		x=x^2%m;
+		e div=2;
+	}
+	return r;
+
+}
+def qtond(x:!ℚ) @[extern="primitive.rational.qtond"] qfree: !ℤ×!ℤ;
+def qfromnd(n:!ℤ,d:!ℤ) @[extern="primitive.rational.qfromnd"] qfree: !ℚ;
+
+def floor(x:!ℝ) @[extern="primitive.real.floor"] lifted: !ℤ;
+def ceil(x:!ℝ) @[extern="primitive.real.ceil"] lifted: !ℤ;
+def round(x:!ℝ) @[artificial] lifted:!ℤ ⇒ floor(x+1/2);
+def inZ(x:!ℝ) @[artificial] lifted:!𝔹 ⇒ x==floor(x);
+def inℤ(x:!ℝ) @[artificial] lifted:!𝔹 ⇒ inZ(x);
+def sqrt(x:!ℝ) @[extern="primitive.real.sqrt"] lifted: !ℝ;
+def cbrt(x:!ℝ) @[extern="primitive.real.cbrt"] lifted: !ℝ;
+def exp(x:!ℝ) @[extern="primitive.real.exp"] lifted: !ℝ;
+def exp2(x:!ℝ) @[extern="primitive.real.exp2"] lifted: !ℝ;
+def expm1(x:!ℝ) @[extern="primitive.real.expm1"] lifted: !ℝ;
+def log(x:!ℝ) @[extern="primitive.real.log"] lifted: !ℝ;
+def log1p(x:!ℝ) @[extern="primitive.real.log1p"] lifted: !ℝ;
+def log10(x:!ℝ) @[extern="primitive.real.log10"] lifted: !ℝ;
+def log2(x:!ℝ) @[extern="primitive.real.log2"] lifted: !ℝ;
+def log₂(x:!ℝ) @[artificial]⇒log2(x);
+def sin(x:!ℝ) @[extern="primitive.real.sin"] lifted: !ℝ;
+def asin(x:!ℝ) @[extern="primitive.real.asin"] lifted: !ℝ;
+def cos(x:!ℝ) @[extern="primitive.real.cos"] lifted: !ℝ;
+def acos(x:!ℝ) @[extern="primitive.real.acos"] lifted: !ℝ;
+def tan(x:!ℝ) @[extern="primitive.real.tan"] lifted: !ℝ;
+def atan(x:!ℝ) @[extern="primitive.real.atan"] lifted: !ℝ;
+def atan2(y:!ℝ,x:!ℝ) @[extern="primitive.real.atan2"] lifted: !ℝ;
+def sinh(x:!ℝ) @[extern="primitive.real.sinh"] lifted: !ℝ;
+def asinh(x:!ℝ) @[extern="primitive.real.asinh"] lifted: !ℝ;
+def cosh(x:!ℝ) @[extern="primitive.real.cosh"] lifted: !ℝ;
+def acosh(x:!ℝ) @[extern="primitive.real.acosh"] lifted: !ℝ;
+def tanh(x:!ℝ) @[extern="primitive.real.tanh"] lifted: !ℝ;
+def atanh(x:!ℝ) @[extern="primitive.real.atanh"] lifted: !ℝ;
+def erf(x:!ℝ) @[extern="primitive.real.erf"] lifted: !ℝ;
+def erfc(x:!ℝ) @[extern="primitive.real.erfc"] lifted: !ℝ;
+def tgamma(x:!ℝ) @[extern="primitive.real.tgamma"] lifted: !ℝ;
+def lgamma(x:!ℝ) @[extern="primitive.real.lgamma"] lifted: !ℝ;
+
+def sign(x:!ℝ)lifted:!ℤ{
+	if x<0{ return -1; }
+	if x>0{ return 1; }
+	return 0;
+}
+// TODO: make the following functions generic
+def abs(x:!ℝ)lifted:!ℝ ⇒ if x<0 then -x else x;
+def min[n:!ℕ](x:!ℝ^n)lifted:!ℝ{
+	r:=x[0];
+	for i in [1..n){
+		if x[i]<r{
+			r=x[i];
+		}
+	}
+	return r;
+}
+def max[n:!ℕ](x:!ℝ^n)lifted:!ℝ{
+	r:=x[0];
+	for i in [1..n){
+		if x[i]>r{
+			r=x[i];
+		}
+	}
+	return r;
+}
+
+def hypot[n:!ℕ](x:!ℝ^n) lifted: !ℝ {
+	def hypot2(x:!ℝ,y:!ℝ) @[extern="primitive.real.hypot2"] lifted: !ℝ;
+	if n=2{ return hypot2(x coerce !ℝ^2); }
+	def hypot3(x:!ℝ,y:!ℝ,z:!ℝ) @[extern="primitive.real.hypot3"] lifted: !ℝ;
+	if n=3{ return hypot3(x coerce !ℝ^3); }
+    m:=0;
+    sumsq:=0;
+    for i in [0..n){
+        v:=x[i];
+        ax:=abs(v);
+        if ax≠0{
+            if ax>m{
+                t:=m/ax;
+                sumsq=1+sumsq·t^2;
+                m=ax;
+            }else{
+                t:=ax/m;
+                sumsq=sumsq+t^2;
+            }
+        }
+    }
+    if m=0 { return 0; }
+    return m*sqrt(sumsq);
+}
+
+𝑖:=1i;
+def cfromri(re:!ℝ,im:!ℝ) @[extern="primitive.complex.cfromri"] qfree: !ℂ;
+def ctori(z:!ℂ) @[extern="primitive.complex.ctori"] qfree: !ℝ×!ℝ;
+def creal(z:!ℂ)lifted: !ℝ ⇒ ctori(z)[0];
+def cimag(z:!ℂ)lifted: !ℝ ⇒ ctori(z)[1];
+def conj(z:!ℂ)qfree: !ℂ{
+	(re,im):=ctori(z);
+	return cfromri(re,-im);
+}
+def cinv(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	denom:=re^2+im^2;
+	return cfromri(re/denom,-im/denom);
+}
+
+def cabs(z:!ℂ)lifted:!ℝ ⇒ hypot(ctori(z));
+def carg(z:!ℂ)lifted:!ℝ{
+	(re,im):=ctori(z);
+	return atan2(im,re);
+}
+def cis(θ:!ℝ)lifted:!ℂ ⇒ cfromri(cos(θ),sin(θ));
+def expi(θ:!ℝ)lifted:!ℂ ⇒ cis(θ);
+def cism1(θ:!ℝ)lifted:!ℂ{
+	(c,s):=ctori(cis(θ/2));
+	return cfromri(-2·s^2,2·s·c);
+}
+def expim1(θ:!ℝ)lifted:!ℂ ⇒ cism1(θ);
+def ctort(z:!ℂ)qfree:!ℝ×!ℝ{
+	(re,im):=ctori(z);
+	return (hypot(re,im),atan2(im,re));
+}
+def cfromrt(r:!ℝ,θ:!ℝ)qfree:!ℂ ⇒ r·cis(θ);
+
+/+def csqrt(z:!ℂ)lifted:!ℂ{
+	(r,θ):=ctort(z);
+	return cfromrt(sqrt(r),θ/2);
+}+/
+def csqrt(z:!ℂ)lifted:!ℂ {
+	(x,y):=ctori(z);
+	if y=0{
+		if x≥0{ return cfromri(sqrt(x),0); }
+		else{ return cfromri(0,sqrt(-x)); }
+	}
+	r:=hypot(x,y);
+	if x≥0{
+		u:=sqrt((r+x)/2);
+		v:=y/(2·u);
+		return cfromri(u,v);
+	}else{
+		v:=sign(y)·sqrt((r-x)/2);
+		u:=y/(2·v);
+		return cfromri(u,v);
+	}
+}
+def csqrt1pm1(z:!ℂ)lifted:!ℂ{
+	if z = 0 { return 0; }
+	s := csqrt(1+z);
+	if cabs(s-1)<1/2 {
+		return z/(s+1);
+	} else {
+		return s-1;
+	}
+}
+def cexp(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	return exp(re)·cis(im);
+}
+def cexpm1(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	eiy:=cis(im);
+	eiy_m1:=cism1(im);
+	exm1:=expm1(re);
+	return exm1·eiy+eiy_m1;
+}
+def cexpi(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	return exp(-im)·cis(re);
+}
+def cexpim1(z:!ℂ)lifted:!ℂ ⇒ cexpm1(𝑖·z);
+def clog(z:!ℂ)lifted:!ℂ{
+	(r,θ):=ctort(z);
+	return cfromri(log(r),θ);
+}
+def clog1p(w:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(w);
+	if abs(re)>1/4||abs(im)>1/4{ return clog(1+w); }
+	a:=1+re, t:=2·re+re^2+im^2;
+	return cfromri(log1p(t)/2,atan2(im,a));
+}
+def cpow(a:!ℂ,b:!ℂ)lifted:!ℂ{
+	(u,v):=ctori(b);
+	if b=0 { return 1; }
+	if a=0{
+		assert(u≥0);
+		assert(v=0);
+		if u>0{ return 0; }
+	}
+	if v=0 && inℤ(u){
+		return a^(u coerce !ℤ);
+	}
+	(r,θ):=ctort(a);
+	ln_r:=log(r);
+	return exp(u·ln_r-v·θ)·cis(v·ln_r+u·θ);
+}
+def csin(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	return cfromri(sin(re)·cosh(im),cos(re)·sinh(im));
+}
+def casin(z:!ℂ)lifted:!ℂ ⇒ clog(𝑖·z+csqrt((1-z)·(1+z)))/𝑖;
+def ccos(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	return cfromri(cos(re)·cosh(im),-sin(re)·sinh(im));
+}
+def cacos(z:!ℂ)lifted:!ℂ ⇒ clog(z+𝑖·csqrt((1-z)·(1+z)))/𝑖;
+//def ctan(z:!ℂ)lifted:!ℂ ⇒ csin(z)/ccos(z);
+def ctan(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	num_re:=sin(2·re);
+	num_im:=sinh(2·im);
+	den:=cos(2·re)+cosh(2·im);
+	return cfromri(num_re/den,num_im/den);
+}
+def catan(z:!ℂ)lifted:!ℂ ⇒ 𝑖/2·(clog1p(-𝑖·z)-clog1p(𝑖·z));
+
+def csinh(z:!ℂ)lifted:!ℂ ⇒ (cexpm1(z)-cexpm1(-z))/2;
+def casinh(z:!ℂ)lifted:!ℂ ⇒ clog1p(z+csqrt1pm1(z^2));
+def ccosh(z:!ℂ)lifted:!ℂ ⇒ (cexpm1(z)+cexpm1(-z))/2;
+def cacosh(z:!ℂ)lifted:!ℂ ⇒ clog1p((z-1)+csqrt(z-1)·csqrt(z+1));
+//def ctanh(z:!ℂ)lifted:!ℂ ⇒ csinh(z)/ccosh(z);
+def ctanh(z:!ℂ)lifted:!ℂ{
+	(re,im):=ctori(z);
+	num_re:=sinh(2·re);
+	num_im:=sin(2·im);
+	den:=cosh(2·re)+cos(2·im);
+	return cfromri(num_re/den,num_im/den);
+}
+def catanh(z:!ℂ)lifted:!ℂ ⇒ (clog1p(z)-clog1p(-z))/2;
+
+def array[τ:*](n: !ℕ,const x:τ) @[artificial] lifted: τ[]⇒vector[τ](n, x);
+def vector[τ:*](n:!ℕ,const x:τ) @[artificial] lifted: τ^n {
+	def impl[τ](n: !ℕ, const x: τ) @[extern="primitive.vector"] lifted: τ^n; // TODO: make unnecessary
+	return impl[τ](n, x);
+}
+
+def print[τ:*](x:!τ) @[artificial] lifted: 𝟙 {
+	def impl[τ': ctype](x: τ') @[extern="primitive.print"] lifted: 𝟙; // TODO: make unnecessary
+	impl[!τ](x);
+}
+def dump() @[extern="primitive.dump"] lifted: 𝟙;
+def exit() @[extern="primitive.exit"] lifted: ⊥;
+
+/+
+// first-class inference
+dat Distribution[a]{ } // TODO: dat Distribution[a];
+def infer[a](f:𝟙→ a):Distribution[a] ⇒ sampleFrom("(r;f)=>δ(Λx.f()[x]/∫dy f()[y])[r]",f):Distribution[a];
+def errorPr[a](d:Distribution[a]):ℝ ⇒ 0;
+def sample[a](d:Distribution[a]):a ⇒ sampleFrom("(x;d)=>d[x]",d):a;
+def expectation(d:Distribution[ℝ]):ℝ ⇒ (sampleFrom("(r;d)=>δ(0)[-r+∫dx d[x]·x]",d):ℝ);
+
+// distributions
+def gauss(μ:ℝ,ν:ℝ):ℝ ⇒ sampleFrom("(x;μ,ν)=>[ν=0]·δ(0)[-μ+x]+[ν≠0]·e^((-1/2·x²+-1/2·μ²+x·μ)·⅟ν)·⅟√2̅·⅟√ν̅·⅟√π̅",μ,ν);
+def Gauss(μ:ℝ,ν:ℝ):Distribution[ℝ] ⇒ infer(()=>(sampleFrom("(x;μ,ν)=>[ν=0]·δ(0)[-μ+x]+[ν≠0]·e^((-1/2·x²+-1/2·μ²+x·μ)·⅟ν)·⅟√2̅·⅟√ν̅·⅟√π̅",μ,ν):ℝ));
+
+def chiSquared(k:ℝ):ℝ ⇒ sampleFrom("(x;k)=>[-x≤0]·[k≠0]·x^(-1+1/2·k)·⅟(∫dξ₁[-ξ₁≤0]·ξ₁^(-1+1/2·k)·⅟e^ξ₁)·⅟2^(1/2·k)·⅟e^(1/2·x)+[k=0]·δ(0)[x]",k):ℝ;
+def ChiSquared(k:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;k)=>[-x≤0]·[k≠0]·x^(-1+1/2·k)·⅟(∫dξ₁[-ξ₁≤0]·ξ₁^(-1+1/2·k)·⅟e^ξ₁)·⅟2^(1/2·k)·⅟e^(1/2·x)+[k=0]·δ(0)[x]",k):ℝ);
+
+def rayleigh(ν:ℝ):ℝ ⇒ sampleFrom("(x;ν)=>[-x≤0]·[ν≠0]·x·⅟e^(1/2·x²·⅟ν)·⅟ν+[ν=0]·δ(0)[x]",ν):ℝ;
+def Rayleigh(ν:ℝ):Distribution[ℝ] ⇒	infer(() ⇒ sampleFrom("(x;ν)=>[-x≤0]·[ν≠0]·x·⅟e^(1/2·x²·⅟ν)·⅟ν+[ν=0]·δ(0)[x]",ν):ℝ);
+
+def truncatedGauss(μ:ℝ,ν:ℝ,a:ℝ,b:ℝ):ℝ ⇒ sampleFrom("(x;μ,ν,a,b)=>[-b+x≤0]·[-x+a≤0]·[ν≠0]·e^((-1/2·x²+-1/2·μ²+x·μ)·⅟ν)·⅟((d/dx)⁻¹[e^(-x²)]((-μ+b)·⅟√ν̅)+-(d/dx)⁻¹[e^(-x²)]((-μ+a)·⅟√ν̅))·⅟ν·⅟√2̅·⅟√π̅+[ν=0]·δ(0)[-μ+x]",μ,ν,a,b):ℝ;
+def TruncatedGauss(μ:ℝ,ν:ℝ,a:ℝ,b:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;μ,ν,a,b)=>[-b+x≤0]·[-x+a≤0]·[ν≠0]·e^((-1/2·x²+-1/2·μ²+x·μ)·⅟ν)·⅟((d/dx)⁻¹[e^(-x²)]((-μ+b)·⅟√ν̅)+-(d/dx)⁻¹[e^(-x²)]((-μ+a)·⅟√ν̅))·⅟ν·⅟√2̅·⅟√π̅+[ν=0]·δ(0)[-μ+x]",μ,ν,a,b):ℝ);
+
+def pareto(a:ℝ,b:ℝ):ℝ ⇒ sampleFrom("(x;a,b)=>[-x+b≤0]·[-x≤0]·a·b^a·x^(-1+-a)",a,b):ℝ;
+def Pareto(a:ℝ,b:ℝ):Distribution[ℝ] ⇒ infer(()=>sampleFrom("(x;a,b)=>[-x+b≤0]·[-x≤0]·a·b^a·x^(-1+-a)",a,b):ℝ);
+
+def uniform(a:ℝ,b:ℝ):ℝ ⇒ sampleFrom("(x;a,b)=>[a≠b]·[a≤x]·[x≤b]·⅟(b-a)+[a=b]·δ(0)[a-x]",a,b):ℝ;
+def Uniform(a:ℝ,b:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;a,b)=>[a≠b]·[a≤x]·[x≤b]·⅟(b-a)+[a=b]·δ(0)[a-x]",a,b):ℝ);
+
+/+def cosUniform() ⇒ sampleFrom("(r)=>[-1+-r≠0]·[-1+-r≤0]·[-1+r≤0]·[-r+1≠0]·⅟π·⅟√-̅r̅²̅+̅1̅");
+def CosUniform() ⇒ infer(() ⇒ sampleFrom("(r)=>[-1+-r≠0]·[-1+-r≤0]·[-1+r≤0]·[-r+1≠0]·⅟π·⅟√-̅r̅²̅+̅1̅"));+/
+
+def flip(p:ℝ):ℝ ⇒ sampleFrom("(x;p)=>(1-p)·δ(0)[x]+p·δ(0)[1-x]",p):ℝ;
+def Flip(p:ℝ):Distribution[ℝ] ⇒ infer(()=>sampleFrom("(x;p)=>(1-p)·δ(0)[x]+p·δ(0)[1-x]",p):ℝ);
+def bernoulli(p:ℝ) ⇒ flip(p);
+def Bernoulli(p:ℝ) ⇒ Flip(p);
+
+def uniformInt(a:ℝ,b:ℝ):ℝ ⇒ sampleFrom("(x;a,b)=>(∑_i[a≤i]·[i≤b]·δ(0)[i-x])·⅟(∑_i[a≤i]·[i≤b])",a,b):ℝ;
+def UniformInt(a:ℝ,b:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;a,b)=>(∑_i[a≤i]·[i≤b]·δ(0)[i-x])·⅟(∑_i[a≤i]·[i≤b])",a,b):ℝ);
+
+def binomial(n:ℝ,p:ℝ):ℝ ⇒ sampleFrom("(x;n,p)=>∑_ξ₁(-p+1)^(-ξ₁+n)·(∫dξ₂[-ξ₂≤0]·ξ₂^n·⅟e^ξ₂)·[-n+ξ₁≤0]·[-ξ₁≤0]·p^ξ₁·δ(0)[-ξ₁+x]·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^(-ξ₁+n)·⅟e^ξ₂)·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^ξ₁·⅟e^ξ₂)",n,p):ℝ;
+def Binomial(n:ℝ,p:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;n,p)=>∑_ξ₁(-p+1)^(-ξ₁+n)·(∫dξ₂[-ξ₂≤0]·ξ₂^n·⅟e^ξ₂)·[-n+ξ₁≤0]·[-ξ₁≤0]·p^ξ₁·δ(0)[-ξ₁+x]·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^(-ξ₁+n)·⅟e^ξ₂)·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^ξ₁·⅟e^ξ₂)",n,p):ℝ);
+
+def negBinomial(r:ℝ,p:ℝ):ℝ ⇒ sampleFrom("(x;r,p)=>∑_ξ₁(-p+1)^ξ₁·(∫dξ₂[-ξ₂≤0]·ξ₂^(-1+r+ξ₁)·⅟e^ξ₂)·[-ξ₁≤0]·p^r·δ(0)[-ξ₁+x]·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^(-1+r)·⅟e^ξ₂)·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^ξ₁·⅟e^ξ₂)",r,p):ℝ;
+def NegBinomial(r:ℝ,p:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;r,p)=>∑_ξ₁(-p+1)^ξ₁·(∫dξ₂[-ξ₂≤0]·ξ₂^(-1+r+ξ₁)·⅟e^ξ₂)·[-ξ₁≤0]·p^r·δ(0)[-ξ₁+x]·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^(-1+r)·⅟e^ξ₂)·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^ξ₁·⅟e^ξ₂)",r,p):ℝ);
+
+def geometric(p:ℝ):ℝ ⇒ sampleFrom("(x;p)=>∑_i[0≤i]·(1-p)^i·p·δ(0)[i-x]",p);
+def Geometric(p:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;p)=>∑_i[0≤i]·(1-p)^i·p·δ(0)[i-x]",p));
+
+def poisson(λ:ℝ):ℝ ⇒ sampleFrom("(x;l)=>(∑_ξ₁[-ξ₁≤0]·δ(0)[-ξ₁+x]·l^ξ₁·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^ξ₁·⅟e^ξ₂))·⅟e^l",λ);
+def Poisson(λ:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;l)=>(∑_ξ₁[-ξ₁≤0]·δ(0)[-ξ₁+x]·l^ξ₁·⅟(∫dξ₂[-ξ₂≤0]·ξ₂^ξ₁·⅟e^ξ₂))·⅟e^l",λ));
+
+def beta(α:ℝ,β:ℝ):ℝ ⇒ sampleFrom("(x;α,β)=>((-x+1)^(-1+β)·[-1+x≤0]·[-x≤0]·[α≠0]·[β≠0]·x^(-1+α)+[α=0]·δ(0)[x]+[β=0]·δ(0)[-x+1])·(1/2·[α=0]·[β=0]+[α=0]·[β≠0]+[α≠0]·[β=0]+[α≠0]·[β≠0]·⅟(∫dξ₁(-ξ₁+1)^(-1+β)·[-1+ξ₁≤0]·[-ξ₁≤0]·ξ₁^(-1+α)))",α,β):ℝ;
+def Beta(α:ℝ,β:ℝ):Distribution[ℝ] ⇒ infer(()=>sampleFrom("(x;α,β)=>((-x+1)^(-1+β)·[-1+x≤0]·[-x≤0]·[α≠0]·[β≠0]·x^(-1+α)+[α=0]·δ(0)[x]+[β=0]·δ(0)[-x+1])·(1/2·[α=0]·[β=0]+[α=0]·[β≠0]+[α≠0]·[β=0]+[α≠0]·[β≠0]·⅟(∫dξ₁(-ξ₁+1)^(-1+β)·[-1+ξ₁≤0]·[-ξ₁≤0]·ξ₁^(-1+α)))",α,β):ℝ);
+
+def gamma(α:ℝ,β:ℝ):ℝ ⇒ sampleFrom("(x;α,β)=>([-x≤0]·[α≠0]·x^(-1+α)·⅟e^(x·β)+[α=0]·δ(0)[x])·([α=0]+[α≠0]·⅟(∫dξ₁[-ξ₁≤0]·ξ₁^(-1+α)·⅟e^(β·ξ₁)))",α,β):ℝ;
+def Gamma(α:ℝ,β:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;α,β)=>([-x≤0]·[α≠0]·x^(-1+α)·⅟e^(x·β)+[α=0]·δ(0)[x])·([α=0]+[α≠0]·⅟(∫dξ₁[-ξ₁≤0]·ξ₁^(-1+α)·⅟e^(β·ξ₁)))",α,β):ℝ);
+
+def laplace(μ:ℝ,b:ℝ):ℝ ⇒ sampleFrom("(x;μ,b)=>(1/2·[-x+μ≤0]·e^((-x+μ)·⅟b)+1/2·[-μ+x≠0]·[-μ+x≤0]·e^((-μ+x)·⅟b))·[b≠0]·⅟b+[b=0]·δ(0)[-μ+x]",μ,b):ℝ;
+def Laplace(μ:ℝ,b:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;μ,b)=>(1/2·[-x+μ≤0]·e^((-x+μ)·⅟b)+1/2·[-μ+x≠0]·[-μ+x≤0]·e^((-μ+x)·⅟b))·[b≠0]·⅟b+[b=0]·δ(0)[-μ+x]",μ,b):ℝ);
+
+def cauchy(x₀:ℝ,γ:ℝ):ℝ ⇒ sampleFrom("(x;x₀,γ)=>[γ=0]·δ(0)[-x₀+x]+[γ≠0]·⅟((-2·x·x₀·π+x₀²·π+x²·π)·⅟γ²+π)·⅟γ",x₀,γ):ℝ;
+def Cauchy(x₀:ℝ,γ:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;x₀,γ)=>[γ=0]·δ(0)[-x₀+x]+[γ≠0]·⅟((-2·x·x₀·π+x₀²·π+x²·π)·⅟γ²+π)·⅟γ",x₀,γ):ℝ);
+
+def exponential(λ:ℝ):ℝ ⇒ sampleFrom("(x;l)=>[0≤x]·l·e^(-x·l)",λ):ℝ;
+def Exponential(λ:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;l)=>[0≤x]·l·e^(-x·l)",λ):ℝ);
+
+def studentT(ν:ℝ):ℝ ⇒ sampleFrom("(x;ν)=>[ν≠0]·(1+x²·⅟ν)^(-1/2+-1/2·ν)·⅟(∫dξ₁(1+ξ₁²·⅟ν)^(-1/2+-1/2·ν))+[ν=0]·δ(0)[x]",ν):ℝ;
+def StudentT(ν:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;ν)=>[ν≠0]·(1+x²·⅟ν)^(-1/2+-1/2·ν)·⅟(∫dξ₁(1+ξ₁²·⅟ν)^(-1/2+-1/2·ν))+[ν=0]·δ(0)[x]",ν):ℝ);
+
+def weibull(λ:ℝ,k:ℝ):ℝ ⇒ sampleFrom("(x;l,k)=>([k=0]·[l≠0]+[l=0])·δ(0)[x]+[-x≤0]·[k≠0]·[l≠0]·k·x^(-1+k)·⅟e^(x^k·⅟l^k)·⅟l^k",λ,k):ℝ;
+def Weibull(λ:ℝ,k:ℝ):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;l,k)=>([k=0]·[l≠0]+[l=0])·δ(0)[x]+[-x≤0]·[k≠0]·[l≠0]·k·x^(-1+k)·⅟e^(x^k·⅟l^k)·⅟l^k",λ,k):ℝ);
+
+def categorical(p:ℝ[]):ℝ ⇒ sampleFrom("(x;p)=>∑_i[0≤i]·[i<p.length]·p@[i]·δ(0)[i-x]",p):ℝ;
+def Categorical(p:ℝ[]):Distribution[ℝ] ⇒ infer(() ⇒ sampleFrom("(x;p)=>∑_i[0≤i]·[i<p.length]·p@[i]·δ(0)[i-x]",p):ℝ);
+
+def dirac[a](x:a) ⇒ x;
+def Dirac[a](x:a) ⇒ infer(()=>x);
+
+def dirichlet(α: ℝ[]){
+	r:=array(α.length,0.0);
+	sum:=0.0;
+	for i in [0..α.length){
+		r[i]=gamma(α[i],1.0);
+		sum+=r[i];
+	}
+	for i in [0..α.length){
+		r[i]/=sum;
+	}
+	return r;
+}
+def Dirichlet(α: ℝ[]) ⇒ infer(()=>dirichlet(α));
+
+def multiGauss(μ: ℝ[], Σ: ℝ[][]){
+	def mmv(A: ℝ[][], b: ℝ[]){
+		r:=array(A.length,0.0);
+		for i in [0..A.length){
+			for j in [0..b.length){
+				r[i]+=A[i][j]*b[j];
+			}
+		}
+		return r;
+	}
+	def avv(a: ℝ[], b: ℝ[]){
+		r:=array(a.length,0.0);
+		for i in [0..a.length){
+			r[i]=a[i]+b[i];
+		}
+		return r;
+	}
+	def dot(a: ℝ[], b: ℝ[]){
+		r:=0.0;
+		for i in [0..a.length){
+			r+=a[i]*b[i];
+		}
+		return r;
+	}
+	def cholesky(A: ℝ[][]){
+		L := array(A.length,array(A.length,0.0));
+		for i in [0..A.length){
+			for j in [0..i]{
+				t := dot(L[i][0..j],L[j][0..j]);
+				if i == j {
+					L[i][j] = (A[i][j]-t)^(1/2)
+				}else if L[j][j]!=0{
+					L[i][j] = (A[i][j]-t)/L[j][j];
+				}
+			}
+		}
+		return L;
+	}
+	r := array(μ.length,0.0);
+	for i in [0..r.length){
+		r[i] = gauss(0,1);
+	}
+	return avv(mmv(cholesky(Σ),r),μ);
+}
+def MultiGauss(μ: ℝ[], Σ: ℝ[][])⇒infer(()⇒ multiGauss(μ,Σ));
++/
+__NOCHECK__ := 1;

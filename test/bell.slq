@@ -1,0 +1,17 @@
+// Bell 态制备与验证
+// 运行: silq --run test/bell.slq
+
+def main() {
+    // Hadamard 门创建叠加态
+    x := H(0);
+    // 准备第二个 qubit
+    y := 0;
+    // 受控非门 (CNOT): if 量子控制
+    if x {
+        y := X(y);
+    }
+    // 自动去计算 (forget)
+    forget(x=y);
+    // 验证: 对 y 应用 H 后再测量，应该得到 0
+    assert(!measure(H(y)));
+}
