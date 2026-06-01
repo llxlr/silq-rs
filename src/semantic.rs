@@ -13,7 +13,7 @@ pub struct SemanticAnalyzer {
     /// The current scope chain.
     pub scope: Scope,
     /// Type variable counter for fresh type variables.
-    next_tvar: usize,
+    _next_tvar: usize,
     /// Error count.
     errors: usize,
 }
@@ -24,19 +24,21 @@ impl SemanticAnalyzer {
         SemanticAnalyzer {
             interner,
             scope,
-            next_tvar: 0,
+            _next_tvar: 0,
             errors: 0,
         }
     }
 
     /// Generate a fresh type variable.
+    #[allow(dead_code)]
     fn fresh_tvar(&mut self) -> Expression {
-        let idx = self.next_tvar;
-        self.next_tvar += 1;
+        let idx = self._next_tvar;
+        self._next_tvar += 1;
         Expression::TypeVar { loc: Location::default(), index: idx }
     }
 
     /// Register an error.
+    #[allow(dead_code)]
     fn error(&mut self, msg: &str) {
         self.errors += 1;
         eprintln!("[semantic error] {}", msg);

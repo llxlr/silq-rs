@@ -116,14 +116,14 @@ pub struct Interner {
 
 ### 4. Parser (parser.rs)
 
-**位置:** `src/parser.rs` | **行数:** 998
+**位置:** `src/parser.rs` | **行数:** 1,045
 
 Pratt 解析器（优先级爬升法），递归下降。
 
 **架构:**
 - `nud()` — 前缀/主表达式解析 (标识符, 字面量, 关键字)
 - `led()` — 中缀/后缀表达式解析 (二元运算符, 调用, 索引)
-- `infix()` — 分发到具体的中缀处理
+- `infix()` — 分发到具体的中缀处理 (含 `:=`/`←`/`+=` 等赋值运算符)
 - `parse_expression_precedence(min_bp)` — 优先级爬升主循环
 
 **关键解析方法:**
@@ -142,7 +142,7 @@ Pratt 解析器（优先级爬升法），递归下降。
 
 ### 5. 量子模拟器 (qsim.rs)
 
-**位置:** `src/qsim.rs` | **行数:** 1,048
+**位置:** `src/qsim.rs` | **行数:** 1,097
 
 核心后端，在经典计算机上模拟量子计算。
 
@@ -184,6 +184,8 @@ enum Value {            // 运行时值
 - `eval(Expression) → Result<Value, String>` — 递归 AST 求值
 - `call_function(Declaration, args) → Value` — 函数调用
 - `call_builtin(name, args) → Value` — 内置量子门
+- `alloc_qubit()` — 分配新 qubit 并初始化态向量 `|0⟩`
+- 测量使用 `fastrand` 库实现真随机数生成
 
 ### 6. 其他关键模块
 
@@ -243,7 +245,7 @@ Value           (计算结果)
 
 | 方面 | D 实现 | Rust 实现 |
 |------|--------|-----------|
-| 代码量 | ~55,000 行 | ~5,657 行 |
+| 代码量 | ~55,000 行 | ~5,754 行 |
 | AST 节点 | 类层次 (虚函数) | 枚举 + match |
 | 内存管理 | GC | 所有权系统 |
 | 错误处理 | 异常 | Result<T, E> |

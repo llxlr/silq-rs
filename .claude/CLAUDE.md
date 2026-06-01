@@ -32,7 +32,7 @@ src/
 ├── lib.rs           # Library root, re-exports
 ├── token.rs         # Token types, keywords, operator precedence tables
 ├── lexer.rs         # UTF-8 lexer, Unicode math symbols, nested comments
-├── parser.rs        # Pratt precedence-climbing recursive descent parser
+├── parser.rs        # Pratt precedence-climbing recursive descent parser (with := infix handling)
 ├── ast.rs           # AST (Expression enum 37 variants, Declaration, TypeKind, Interner)
 ├── scope.rs         # Nested symbol table with name interning
 ├── semantic.rs      # Name resolution and scope management
@@ -69,7 +69,7 @@ In Silq, types are expressions (dependent types). The Rust AST uses a single `Ex
 
 ### Quantum Simulation
 
-`QState` uses sparse `BTreeMap<BasisState, Complex64>` for state vectors. Gates are applied as 2×2 unitary matrices. Measurement collapses with probability normalization.
+`QState` uses sparse `BTreeMap<BasisState, Complex64>` for state vectors. `alloc_qubit()` initializes the state vector with `|0⟩` amplitude on qubit allocation. Gates are applied as 2×2 unitary matrices. Measurement uses `fastrand` for true random number generation and collapses with probability normalization.
 
 ### Standard Library
 
@@ -106,7 +106,8 @@ BasisState       // computational basis (Vec<u8> of 0/1 per qubit)
 | Feature | Status |
 |---------|--------|
 | Lexer | Full |
-| Parser | Full |
+| Parser | Full (:= assignment as infix operator) |
+| Quantum simulator | Qubit allocation, gates, measurement (true random) |
 | Type inference (HM-like) | Name resolution only |
 | Operator lowerings | Not implemented |
 | Full reverse transformation | Stub |

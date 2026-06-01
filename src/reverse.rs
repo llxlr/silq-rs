@@ -40,7 +40,7 @@ fn reverse_expression(expr: &Expression) -> Expression {
     match expr {
         Expression::Compound { statements, loc } => {
             // Reverse the order of statements and reverse each one
-            let mut reversed: Vec<Expression> = statements.iter()
+            let reversed: Vec<Expression> = statements.iter()
                 .rev()
                 .map(|s| reverse_expression(s))
                 .collect();

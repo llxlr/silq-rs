@@ -81,6 +81,7 @@ src/
 5. **更多量子门** — Toffoli, Fredkin, SWAP
 6. **WASM 编译目标** — 浏览器量子模拟
 7. **性能优化** — 密集状态向量, SIMD
+8. **编译器警告清零** — 消除所有 dead_code/unused 警告 (已完成)
 
 ## 参考
 

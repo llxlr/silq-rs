@@ -51,6 +51,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Check if the current token matches any of the given types.
+    #[allow(dead_code)]
     fn check_any(&self, types: &[TokenType]) -> bool {
         types.contains(&self.current.ty)
     }
@@ -93,6 +94,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Get the location of the previous token.
+    #[allow(dead_code)]
     fn prev_location(&self) -> Location {
         Location {
             line: self.previous.line,
@@ -113,6 +115,7 @@ impl<'a> Parser<'a> {
     // ---- Synchronization for error recovery ----
 
     /// Synchronize the parser to a known recovery point.
+    #[allow(dead_code)]
     fn synchronize(&mut self) {
         self.panic_mode = false;
         while !self.check(TokenType::Eof) {
@@ -841,6 +844,49 @@ impl<'a> Parser<'a> {
                 let field = self.interner.intern(&self.current.text);
                 self.advance();
                 Expression::Field { loc, expr: Box::new(left), field }
+            }
+
+            // Assignment: x := y
+            TokenType::Assign => {
+                let value = self.parse_expression_precedence(precedence::ASSIGN);
+                if let Expression::Identifier { name, .. } = &left {
+                    Expression::new_let(
+                        loc, *name, None, value,
+                        Expression::Identifier {
+                            loc: Location::default(),
+                            name: *name,
+                            meaning: None,
+                            classical: false,
+                        },
+                    )
+                } else {
+                    Expression::Assign {
+                        loc,
+                        target: Box::new(left),
+                        value: Box::new(value),
+                    }
+                }
+            }
+
+            // Left arrow assignment: x ← y
+            TokenType::LeftArrow => {
+                let value = self.parse_expression_precedence(precedence::ASSIGN);
+                Expression::Assign {
+                    loc,
+                    target: Box::new(left),
+                    value: Box::new(value),
+                }
+            }
+
+            // Compound assignment: x += y, x -= y, etc.
+            TokenType::PlusAssign | TokenType::MinusAssign
+            | TokenType::MulAssign | TokenType::DivAssign | TokenType::ModAssign => {
+                let value = self.parse_expression_precedence(precedence::ASSIGN);
+                Expression::Assign {
+                    loc,
+                    target: Box::new(left),
+                    value: Box::new(value),
+                }
             }
 
             // Binary operators

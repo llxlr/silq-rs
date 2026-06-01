@@ -9,15 +9,15 @@ Silq 是 ETH Zurich 开发的高阶量子编程语言，具有强静态类型系
 | 模块 | 状态 | 描述 |
 |------|------|------|
 | 词法分析器 (Lexer) | ✅ 完整 | UTF-8, Unicode 数学符号, 注解, 嵌套注释 |
-| 语法分析器 (Parser) | ✅ 完整 | Pratt 表达式解析, 声明, 控制流 |
+| 语法分析器 (Parser) | ✅ 完整 | Pratt 表达式解析, `:=` 中缀赋值, 声明, 控制流 |
 | AST 定义 | ✅ 完整 | 30+ 表达式节点, 完整类型系统 |
 | 语义分析 | ✅ 基本 | 名称解析, 声明注册 |
 | 线性检查器 | ✅ 基本 | const/moved 跟踪 |
-| 量子模拟器 (QSim) | ✅ 核心 | 状态向量, H/X/Y/Z/CNOT/测量 |
+| 量子模拟器 (QSim) | ✅ 核心 | 状态向量, qubit 分配, H/X/Y/Z/CNOT/随机测量 |
 | HQIR 后端 | 🔧 骨架 | 框架就绪 |
 | 标准库 | ✅ | prelude.slq 包含 |
 
-**代码规模:** 5,657 行 Rust 代码 | **测试:** 10/10 通过
+**代码规模:** 5,754 行 Rust 代码 | **测试:** 10/10 通过
 
 ## 快速开始
 
@@ -185,7 +185,7 @@ silq-rs/
 │   ├── lib.rs                    # 库根
 │   ├── token.rs                  # Token/关键字/优先级 (348 行)
 │   ├── lexer.rs                  # 词法分析器 (759 行)
-│   ├── parser.rs                 # Pratt 解析器 (998 行)
+│   ├── parser.rs                 # Pratt 解析器 (1045 行)
 │   ├── ast.rs                    # AST 定义 (916 行)
 │   ├── scope.rs                  # 符号表 (102 行)
 │   ├── semantic.rs               # 语义分析 (269 行)
@@ -195,7 +195,7 @@ silq-rs/
 │   ├── reverse.rs                # 量子逆变换 (103 行)
 │   ├── modules.rs                # 模块系统 (133 行)
 │   ├── errors.rs                 # 错误处理 (272 行)
-│   ├── qsim.rs                   # 量子模拟器 (1048 行)
+│   ├── qsim.rs                   # 量子模拟器 (1097 行)
 │   ├── hqir.rs                   # HQIR 后端 (84 行)
 │   └── options.rs                # 配置 (56 行)
 └── test/
@@ -205,7 +205,7 @@ silq-rs/
 ## 构建要求
 
 - **Rust** 1.75+
-- 依赖项: `num-complex`, `num-bigint`, `itertools`, `colored`
+- 依赖项: `num-complex`, `num-bigint`, `itertools`, `colored`, `fastrand`
 
 ## 参考
 

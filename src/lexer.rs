@@ -83,6 +83,7 @@ impl Lexer {
     }
 
     /// Check if the next bytes match a string, and advance past them.
+    #[allow(dead_code)]
     fn matches(&mut self, s: &[u8]) -> bool {
         let end = self.pos + s.len();
         if end <= self.source.len() && &self.source[self.pos..end] == s {
@@ -263,7 +264,7 @@ impl Lexer {
         // Check for rational literal
         if self.peek_byte() == Some(b'\\') {
             let _ = self.advance(); // \
-            let denom_start = self.pos;
+            let _denom_start = self.pos;
             while !self.is_eof() && self.peek_byte().unwrap().is_ascii_digit() {
                 self.advance();
             }
@@ -338,12 +339,10 @@ impl Lexer {
         let loc = self.location();
         self.advance(); // opening '
         let mut result = '?';
-        let mut escaped = false;
 
         if !self.is_eof() {
             let ch = self.advance().unwrap();
             if ch == b'\\' {
-                escaped = true;
                 if !self.is_eof() {
                     let ch = self.advance().unwrap();
                     match ch {
@@ -371,7 +370,7 @@ impl Lexer {
     }
 
     /// Read a Unicode math token (single-char Unicode operators).
-    fn read_unicode_token(&mut self, first_byte: u8) -> Option<Token> {
+    fn read_unicode_token(&mut self, _first_byte: u8) -> Option<Token> {
         // Read the full UTF-8 sequence
         let seq_start = self.pos;
         self.advance();
@@ -382,7 +381,6 @@ impl Lexer {
         let ch = seq.chars().next();
 
         let loc = self.location();
-        loc.clone(); // take the loc at the start
 
         match ch {
             Some('·') => Some(Token::new(TokenType::Mul, "·".into(), loc.line, loc.col, loc.offset)),

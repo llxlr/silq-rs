@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, HashMap};
 
 // Type aliases for readability
 type Amplitude = Complex64;
+#[allow(dead_code)]
 type Probability = f64;
 
 // =============================================================================
@@ -229,6 +230,40 @@ impl QState {
         self.next_qubit += 1;
         self.num_qubits += 1;
         self.variables.insert(name.0, (qidx, 1));
+
+        // Initialize the state vector with |0⟩ amplitude for this qubit
+        if self.amplitudes.is_empty() {
+            // First qubit: initialize |0⟩ with amplitude 1.0
+            let mut state = BasisState::new(self.num_qubits);
+            state.set(qidx, 0);
+            self.amplitudes.insert(state, Amplitude::new(1.0, 0.0));
+        } else {
+            // Additional qubit: tensor with |0⟩ (amplitude stays on states with new qubit = 0)
+            self.num_qubits -= 1; // temporarily revert to build new states
+            let mut new_amps = BTreeMap::new();
+            let old_states: Vec<_> = self.amplitudes.keys().cloned().collect();
+            let old_amps: Vec<_> = old_states.iter().map(|s| self.amplitudes[s]).collect();
+            if old_states.is_empty() {
+                // Fallback: empty state, initialize with new qubit = |0⟩
+                self.num_qubits += 1;
+                let mut state = BasisState::new(self.num_qubits);
+                state.set(qidx, 0);
+                self.amplitudes.insert(state, Amplitude::new(1.0, 0.0));
+            } else {
+                self.num_qubits += 1;
+                for (old_state, amp) in old_states.iter().zip(old_amps.iter()) {
+                    let mut new_state = BasisState::new(self.num_qubits);
+                    // Copy old state bits
+                    for i in 0..old_state.n {
+                        new_state.set(if i < qidx { i } else { i + 1 }, old_state.get(i));
+                    }
+                    new_state.set(qidx, 0); // new qubit in |0⟩
+                    new_amps.insert(new_state, *amp);
+                }
+                self.amplitudes = new_amps;
+            }
+        }
+
         qidx
     }
 
@@ -292,11 +327,7 @@ impl QState {
         }
 
         // Random choice based on probabilities
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut hasher = DefaultHasher::new();
-        prob0.to_bits().hash(&mut hasher);
-        let rand_val = (hasher.finish() as f64) / (u64::MAX as f64);
+        let rand_val: f64 = fastrand::f64();
         let result = if rand_val < prob0 { 0 } else { 1 };
 
         // Collapse the state
@@ -519,7 +550,7 @@ impl Interpreter {
                     return Ok(Value::QVar { index: qidx, name: *name });
                 }
                 // Look up functions
-                if let Some(decl) = self.functions.get(&name.0) {
+                if let Some(_decl) = self.functions.get(&name.0) {
                     return Ok(Value::Closure {
                         func_id: *name,
                         captures: HashMap::new(),
@@ -546,7 +577,7 @@ impl Interpreter {
                 // Evaluate function expression
                 let func_val = self.eval(function)?;
                 match func_val {
-                    Value::Closure { func_id, captures } => {
+                    Value::Closure { func_id, captures: _ } => {
                         let decl = self.functions.get(&func_id.0)
                             .cloned()
                             .ok_or_else(|| format!("undefined function: {}", self.interner.lookup(func_id)))?;
@@ -571,12 +602,27 @@ impl Interpreter {
                 }
             }
 
-            Expression::Let { name, type_ann, value, body, .. } => {
-                let val = self.eval(value)?;
-                self.state.store_classical(*name, val);
-                let result = self.eval(body)?;
-                self.state.classical_vars.remove(&name.0);
-                Ok(result)
+            Expression::Let { name, type_ann: _, value, body, .. } => {
+                // Check if this is a qubit allocation: x := 0: 𝔹
+                let is_qubit = matches!(
+                    value.as_ref(),
+                    Expression::TypeAnnotation { ty, .. }
+                        if matches!(ty.as_ref(), Expression::Identifier { name: ty_name, .. }
+                            if self.interner.lookup(*ty_name) == "𝔹")
+                );
+
+                if is_qubit {
+                    // Allocate a qubit initialized to |0⟩
+                    self.state.alloc_qubit(*name);
+                    let result = self.eval(body)?;
+                    Ok(result)
+                } else {
+                    let val = self.eval(value)?;
+                    self.state.store_classical(*name, val);
+                    let result = self.eval(body)?;
+                    self.state.classical_vars.remove(&name.0);
+                    Ok(result)
+                }
             }
 
             Expression::Assign { target, value, .. } => {
@@ -609,7 +655,7 @@ impl Interpreter {
                 Ok(last)
             }
 
-            Expression::TypeAnnotation { expr, kind, .. } => {
+            Expression::TypeAnnotation { expr, kind: _, .. } => {
                 // For now, ignore type annotations at runtime
                 self.eval(expr)
             }
@@ -647,7 +693,7 @@ impl Interpreter {
                 Ok(Value::Tuple(vals))
             }
 
-            Expression::Lambda { params, body, annotation, .. } => {
+            Expression::Lambda { .. } => {
                 Err("lambda expressions not yet executed at runtime".into())
             }
 
@@ -730,7 +776,10 @@ impl Interpreter {
                 let b_f64 = b.to_string().parse::<f64>().unwrap_or(0.0);
                 Ok(Value::Float(a + b_f64))
             },
-            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(b.clone())),
+            (Value::Int(a), Value::Float(b)) => {
+                let a_f64 = a.to_string().parse::<f64>().unwrap_or(0.0);
+                Ok(Value::Float(a_f64 + b))
+            },
             _ => Err(format!("cannot add {:?} and {:?}", std::mem::discriminant(l), std::mem::discriminant(r))),
         }
     }

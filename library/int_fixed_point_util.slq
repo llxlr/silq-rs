@@ -1,0 +1,52 @@
+
+def fromAngle[n:!ℕ](φ:!ℝ)lifted⇒round(φ/(2·π)·2^n) as !int[n];
+def toAngle[n:!ℕ](φ:!int[n])lifted⇒2·π·(φ as !ℤ)/2^n;
+
+def fromRange[a:!ℝ,b:!ℝ][n:!ℕ](x:!ℝ)lifted⇒round((x-a)/(b-a)·(2^n-1)) as !uint[n];
+def toRange[a:!ℝ,b:!ℝ][n:!ℕ](x:!uint[n])lifted⇒a+(x as !ℤ)/(2^n-1)·(b-a);
+
+/// computes fromRange[-1,1][n](sin(toAngle[m](x)))
+def sinQ[m:!ℕ,n:!ℕ]lifted(x:int[m])lifted:uint[n]{
+	def impl[m:!ℕ](n:!N, x: int[m]) @[extern="primitive.qfixed.sin"] qfree: uint[n];
+	return impl(n, x);
+}
+
+/// computes fromAngle[n](asin(toRange[-1,1][m](x)))
+def asinQ[m:!ℕ,n:!ℕ](x:uint[m])lifted:int[n]{
+	def impl[m:!ℕ](n:!N, x: uint[m]) @[extern="primitive.qfixed.asin"] qfree: int[n];
+	return impl(n, x);
+}
+
+/// computes fromRange[-1,1][n](cos(toAngle[m](x)))
+def cosQ[m:!ℕ,n:!ℕ]lifted(x:int[m])lifted:uint[n]{
+	def impl[m:!ℕ](n:!N, x: int[m]) @[extern="primitive.qfixed.cos"] qfree: uint[n];
+	return impl(n, x);
+}
+
+/// computes fromAngle[n](acos(toRange[-1,1][m](x)))
+def acosQ[m:!ℕ,n:!ℕ](x:uint[m])lifted:int[n]{
+	def impl[m:!ℕ](n:!N, x: uint[m]) @[extern="primitive.qfixed.acos"] qfree: int[n];
+	return impl(n, x);
+}
+
+/// computes fromRange[0,1][n](c/toRange[0,1][m](x))
+def invQ[m:!ℕ,n:!ℕ,c:!ℝ](x:uint[m])lifted:uint[n]{
+	def impl[m:!ℕ](n:!N, x: uint[m], c: !R) @[extern="primitive.qfixed.inv"] qfree: uint[n];
+	return impl(n, x, c);
+}
+
+def phaseQ[n:!ℕ](const φ:int[n])mfree{
+	for i in [0..n){ if φ[i]{ phase(2·π·2^i/2^n); } }
+}
+def rotXQ[n:!ℕ](const φ:int[n],x:𝔹)mfree{
+	for i in [0..n){ if φ[i]{ x:=rotX(2·π·2^i/2^n,x); } }
+	return x;
+}
+def rotYQ[n:!ℕ](const φ:int[n],x:𝔹)mfree{
+	for i in [0..n){ if φ[i]{ x:=rotY(2·π·2^i/2^n,x); } }
+	return x;
+}
+def rotZQ[n:!ℕ](const φ:int[n],x:𝔹)mfree{
+	for i in [0..n){ if φ[i]{ x:=rotZ(2·π·2^i/2^n,x); } }
+	return x;
+}

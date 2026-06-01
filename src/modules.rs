@@ -35,7 +35,7 @@ impl ModuleCache {
     /// Import a module by name, parsing it if not yet cached.
     pub fn import_module(&mut self, name: &str,
                          interner: &mut Interner,
-                         err_handler: &mut dyn crate::errors::ErrorHandler) -> Option<&Vec<Expression>> {
+                         _err_handler: &mut dyn crate::errors::ErrorHandler) -> Option<&Vec<Expression>> {
         // Check cache first
         if self.modules.contains_key(name) {
             return self.modules.get(name);
@@ -80,7 +80,7 @@ impl ModuleCache {
 /// This is a built-in operation that loads the standard library definitions.
 pub fn load_prelude(cache: &mut ModuleCache,
                     interner: &mut Interner,
-                    err_handler: &mut dyn crate::errors::ErrorHandler) -> Vec<Expression> {
+                    _err_handler: &mut dyn crate::errors::ErrorHandler) -> Vec<Expression> {
     // The prelude is embedded in the compiler
     let prelude_source = include_str!("../library/prelude.slq");
 
@@ -100,7 +100,7 @@ pub fn import_module(path: &str,
     let source = fs::read_to_string(path).ok()?;
 
     // Also load the prelude
-    let prelude_asts = load_prelude(cache, interner, err_handler);
+    let _prelude_asts = load_prelude(cache, interner, err_handler);
 
     let mut lexer = Lexer::new(&source);
     let mut parser = Parser::new(&mut lexer, interner);

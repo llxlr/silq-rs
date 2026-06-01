@@ -35,11 +35,11 @@ fn main() {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--run" => run_mode = true,
             "--run" if i + 1 < args.len() => {
                 // --run can take an optional expression argument
                 run_mode = true;
             }
+            "--run" => run_mode = true,
             "--compile" => {
                 compile_mode = true;
                 run_mode = false;
@@ -117,7 +117,7 @@ fn process_file(path: &str, run: bool, compile: bool, check_only: bool,
     }
 
     // Semantic analysis
-    let mut scope = silq::scope::Scope::global();
+    let scope = silq::scope::Scope::global();
     let mut analyzer = silq::semantic::SemanticAnalyzer::new(silq::ast::Interner::new(), scope);
     analyzer.semantic_program(&mut ast);
 

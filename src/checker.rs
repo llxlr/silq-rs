@@ -77,7 +77,7 @@ impl Checker {
                 }
             }
 
-            Expression::Let { name, value, body, .. } => {
+            Expression::Let { name: _, value, body, .. } => {
                 self.check_expr(value);
                 // Variable is available for the body
                 self.check_expr(body);

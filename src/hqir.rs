@@ -11,9 +11,9 @@ pub struct HqirWriter {
     /// Output buffer.
     output: String,
     /// Named registers.
-    registers: HashMap<String, usize>,
+    _registers: HashMap<String, usize>,
     /// Next register index.
-    next_reg: usize,
+    _next_reg: usize,
     /// Indentation level.
     indent: u32,
 }
@@ -22,8 +22,8 @@ impl HqirWriter {
     pub fn new() -> Self {
         HqirWriter {
             output: String::new(),
-            registers: HashMap::new(),
-            next_reg: 0,
+            _registers: HashMap::new(),
+            _next_reg: 0,
             indent: 0,
         }
     }
@@ -70,14 +70,16 @@ impl HqirWriter {
     }
 
     /// Allocate a new quantum register.
+    #[allow(dead_code)]
     fn alloc_qreg(&mut self, name: &str) -> String {
-        let idx = self.next_reg;
-        self.next_reg += 1;
-        self.registers.insert(name.to_string(), idx);
+        let idx = self._next_reg;
+        self._next_reg += 1;
+        self._registers.insert(name.to_string(), idx);
         format!("%{}.{}", name, idx)
     }
 
     /// Allocate a new classical register.
+    #[allow(dead_code)]
     fn alloc_creg(&mut self, name: &str) -> String {
         format!("${}.{}", name, 0)
     }
