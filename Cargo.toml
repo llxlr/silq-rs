@@ -1,6 +1,6 @@
 [package]
 name = "silq"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Silq quantum programming language - Rust implementation"
 license = "BSL-1.0"
