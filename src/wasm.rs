@@ -1,10 +1,21 @@
 //! WASM bindings for the Silq quantum programming language.
 //!
-//! Exposes the lexer, parser, and quantum simulator to JavaScript
-//! via wasm-bindgen. Compile with:
-//!   cargo build --target wasm32-unknown-unknown --no-default-features --features wasm
+//! ## Usage
 //!
-//! Then use wasm-bindgen or wasm-pack to generate JS bindings.
+//! **For JavaScript/browser use**, you must enable the `wasm` feature:
+//! ```bash
+//! cargo build --target wasm32-unknown-unknown --no-default-features --features wasm --release
+//! ```
+//! This produces a ~350 KB `.wasm` with `run_silq`, `run_silq_dump`, etc.
+//! Use `wasm-pack` or `wasm-bindgen` to generate JS bindings.
+//!
+//! **For embedding in other Rust projects** on WASM, the default build works:
+//! ```bash
+//! cargo build --target wasm32-unknown-unknown --no-default-features --release
+//! ```
+//! This produces a ~1.2 MB `.rlib` library that can be `extern crate silq`-ed.
+//! The `.wasm` binary from default build has no exports and is ~35 KB
+//! (linker strips all unused code without wasm-bindgen annotations).
 
 use crate::ast::Interner;
 use crate::lexer::Lexer;

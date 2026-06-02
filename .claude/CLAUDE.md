@@ -24,9 +24,9 @@ cargo clippy             # Lint (should be 0 warnings)
 cargo run -- --help      # Run binary with args
 
 # Cross-compilation
-cargo build --release --target x86_64-pc-windows-msvc                        # Windows .exe + .dll
-cargo build --release --target wasm32-unknown-unknown --no-default-features  # WASM (35 KB)
-cargo build --target wasm32-unknown-unknown --no-default-features --features wasm  # WASM + wasm-bindgen
+cargo build --release --target x86_64-pc-windows-msvc                        # Windows .exe (681 KB) + .dll (104 KB)
+cargo build --release --target wasm32-unknown-unknown --no-default-features  # WASM .rlib (1.2 MB, for Rust lib use)
+cargo build --release --target wasm32-unknown-unknown --no-default-features --features wasm  # WASM .wasm (352 KB, JS exports)
 ```
 
 **Clippy status: 0 warnings.** All clippy warnings have been resolved across the codebase.
