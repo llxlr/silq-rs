@@ -2,12 +2,17 @@
 //!
 //! Handles module importing, prelude loading, and the module cache.
 
-use crate::ast::{Declaration, Expression, Interner};
+use crate::ast::{Expression, Interner};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::ast::Declaration;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::errors::Location;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
 use std::collections::HashMap;
+#[cfg(not(target_arch = "wasm32"))]
 use std::fs;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 
 /// The module cache stores parsed and semantically-analyzed modules.
@@ -16,6 +21,7 @@ pub struct ModuleCache {
     /// Cached modules: path -> list of top-level expressions.
     modules: HashMap<String, Vec<Expression>>,
     /// Import search paths.
+    #[cfg(not(target_arch = "wasm32"))]
     import_paths: Vec<PathBuf>,
 }
 
@@ -23,16 +29,19 @@ impl ModuleCache {
     pub fn new() -> Self {
         ModuleCache {
             modules: HashMap::new(),
+            #[cfg(not(target_arch = "wasm32"))]
             import_paths: Vec::new(),
         }
     }
 
     /// Add an import search path.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn add_path(&mut self, path: &str) {
         self.import_paths.push(PathBuf::from(path));
     }
 
     /// Import a module by name, parsing it if not yet cached.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn import_module(&mut self, name: &str,
                          interner: &mut Interner,
                          _err_handler: &mut dyn crate::errors::ErrorHandler) -> Option<&Vec<Expression>> {
@@ -55,6 +64,7 @@ impl ModuleCache {
     }
 
     /// Resolve a module name to a file path.
+    #[cfg(not(target_arch = "wasm32"))]
     fn resolve_module_path(&self, module_name: &str) -> Option<PathBuf> {
         // Convert module name to path: a.b.c -> a/b/c.slq
         let rel_path = module_name.replace('.', "/") + ".slq";
@@ -93,6 +103,7 @@ pub fn load_prelude(cache: &mut ModuleCache,
 }
 
 /// Import a module from a specific source file path.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn import_module(path: &str,
                      interner: &mut Interner,
                      cache: &mut ModuleCache,

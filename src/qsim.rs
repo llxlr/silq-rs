@@ -85,7 +85,7 @@ impl Value {
             Value::Int(n) => {
                 let (sign, digits) = n.to_u64_digits();
                 if digits.len() <= 1 {
-                    Some(digits.get(0).copied().unwrap_or(0) as f64 * if sign == num_bigint::Sign::Minus { -1.0 } else { 1.0 })
+                    Some(digits.first().copied().unwrap_or(0) as f64 * if sign == num_bigint::Sign::Minus { -1.0 } else { 1.0 })
                 } else {
                     None
                 }
@@ -196,7 +196,7 @@ impl BasisState {
 // =============================================================================
 
 /// The quantum state: a sparse mapping from basis states to complex amplitudes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct QState {
     /// Sparse state vector: basis state -> amplitude.
     pub amplitudes: BTreeMap<BasisState, Amplitude>,
@@ -280,6 +280,15 @@ impl QState {
     /// Get a classical value for a variable.
     pub fn get_classical(&self, name: Id) -> Option<&Value> {
         self.classical_vars.get(&name.0)
+    }
+
+    /// Apply a global phase factor e^(i*phi) to all amplitudes.
+    /// This is the correct implementation of Silq's `phase:!ℝ→mfree 𝟙`.
+    pub fn apply_global_phase(&mut self, phi: f64) {
+        let factor = Amplitude::new(phi.cos(), phi.sin());
+        for amp in self.amplitudes.values_mut() {
+            *amp *= factor;
+        }
     }
 
     /// Apply a single-qubit unitary gate.
@@ -531,14 +540,11 @@ impl Interpreter {
             Expression::Identifier { name, meaning, .. } => {
                 // Check if it has a meaning (resolved to declaration)
                 if let Some(decl) = meaning {
-                    match decl.as_ref() {
-                        Declaration::FunctionDef { .. } => {
-                            return Ok(Value::Closure {
-                                func_id: *name,
-                                captures: HashMap::new(),
-                            });
-                        }
-                        _ => {}
+                    if let Declaration::FunctionDef { .. } = decl.as_ref() {
+                        return Ok(Value::Closure {
+                            func_id: *name,
+                            captures: HashMap::new(),
+                        });
                     }
                 }
                 // Look up in classical vars
@@ -746,24 +752,59 @@ impl Interpreter {
             TokenType::Eq => {
                 let l = self.eval(left)?;
                 let r = self.eval(right)?;
-                Ok(Value::Bool { val: l.display() == r.display() })
+                Ok(Value::Bool { val: self.eval_cmp_eq(&l, &r) })
             }
             TokenType::Neq => {
                 let l = self.eval(left)?;
                 let r = self.eval(right)?;
-                Ok(Value::Bool { val: l.display() != r.display() })
+                Ok(Value::Bool { val: !self.eval_cmp_eq(&l, &r) })
             }
             TokenType::Lt => {
                 let l = self.eval(left)?;
                 let r = self.eval(right)?;
-                Ok(Value::Bool { val: l.display() < r.display() })
+                Ok(Value::Bool { val: self.eval_cmp_lt(&l, &r) })
             }
             TokenType::Gt => {
                 let l = self.eval(left)?;
                 let r = self.eval(right)?;
-                Ok(Value::Bool { val: l.display() > r.display() })
+                Ok(Value::Bool { val: self.eval_cmp_lt(&r, &l) })
             }
             _ => Err(format!("unsupported binary operator: {:?}", op)),
+        }
+    }
+
+    /// Extract a comparable f64 from any numeric value.
+    fn val_to_f64(v: &Value) -> Option<f64> {
+        match v {
+            Value::Int(n) => n.to_string().parse::<f64>().ok(),
+            Value::Float(f) => Some(*f),
+            Value::IntFixed { val, .. } => Some(*val as f64),
+            Value::Bool { val } => Some(if *val { 1.0 } else { 0.0 }),
+            _ => None,
+        }
+    }
+
+    /// Check equality between two values (type-aware).
+    fn eval_cmp_eq(&self, l: &Value, r: &Value) -> bool {
+        match (l, r) {
+            (Value::Bool { val: a }, Value::Bool { val: b }) => a == b,
+            (Value::Unit, Value::Unit) => true,
+            (Value::Error(a), Value::Error(b)) => a == b,
+            _ => {
+                // Numeric comparison via f64 conversion
+                match (Self::val_to_f64(l), Self::val_to_f64(r)) {
+                    (Some(a), Some(b)) => (a - b).abs() < f64::EPSILON,
+                    _ => l.display() == r.display(),
+                }
+            }
+        }
+    }
+
+    /// Check less-than between two values (type-aware).
+    fn eval_cmp_lt(&self, l: &Value, r: &Value) -> bool {
+        match (Self::val_to_f64(l), Self::val_to_f64(r)) {
+            (Some(a), Some(b)) => a < b,
+            _ => l.display() < r.display(),
         }
     }
 
@@ -788,6 +829,14 @@ impl Interpreter {
         match (l, r) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a - b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
+            (Value::Float(a), Value::Int(b)) => {
+                let b_f64 = b.to_string().parse::<f64>().unwrap_or(0.0);
+                Ok(Value::Float(a - b_f64))
+            },
+            (Value::Int(a), Value::Float(b)) => {
+                let a_f64 = a.to_string().parse::<f64>().unwrap_or(0.0);
+                Ok(Value::Float(a_f64 - b))
+            },
             _ => Err("cannot subtract".into()),
         }
     }
@@ -796,6 +845,14 @@ impl Interpreter {
         match (l, r) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a * b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Value::Float(a), Value::Int(b)) => {
+                let b_f64 = b.to_string().parse::<f64>().unwrap_or(0.0);
+                Ok(Value::Float(a * b_f64))
+            },
+            (Value::Int(a), Value::Float(b)) => {
+                let a_f64 = a.to_string().parse::<f64>().unwrap_or(0.0);
+                Ok(Value::Float(a_f64 * b))
+            },
             _ => Err("cannot multiply".into()),
         }
     }
@@ -872,7 +929,10 @@ impl Interpreter {
                 Ok(Value::Unit)
             }
             "exit" => {
-                std::process::exit(0);
+                #[cfg(not(target_arch = "wasm32"))]
+                std::process::exit(1);
+                #[cfg(target_arch = "wasm32")]
+                return Err("exit is not supported in WASM environment".into());
             }
 
             "H" | "X" | "Y" | "Z" if args.len() == 1 => {
@@ -894,12 +954,8 @@ impl Interpreter {
             "phase" if args.len() == 1 => {
                 let phi = self.eval(&args[0])?;
                 if let Some(phi_f) = phi.as_float() {
-                    // Phase is applied globally, not to a specific qubit in Silq's semantics
-                    // Apply to all qubits evenly
-                    let gate = phase_gate(phi_f);
-                    for i in 0..self.state.num_qubits {
-                        self.state.apply_1q_gate(i, gate);
-                    }
+                    // Global phase: multiply all amplitudes by e^(i*phi)
+                    self.state.apply_global_phase(phi_f);
                     Ok(Value::Unit)
                 } else {
                     Err("phase requires a real angle argument".into())
@@ -930,13 +986,10 @@ impl Interpreter {
             }
 
             "dup" if args.len() == 1 => {
-                // Classical duplication
+                // dup works for both classical and quantum values (Silq semantics)
+                // For quantum values, the const annotation ensures the state is known
                 let val = self.eval(&args[0])?;
-                if val.is_classical() {
-                    Ok(val)
-                } else {
-                    Err("cannot duplicate quantum value".into())
-                }
+                Ok(val)
             }
 
             "rotX" if args.len() == 2 => {
@@ -1054,12 +1107,15 @@ impl Interpreter {
 // QSim - Top-level Simulator Interface
 // =============================================================================
 
+/// Type alias for error handler callbacks.
+type ErrorHandlerFn = Box<dyn FnMut(&str)>;
+
 /// The QSim struct is the main interface to the quantum simulator.
 pub struct QSim {
     /// The interpreter.
     pub interpreter: Interpreter,
     /// Error handler callback.
-    error_handler: Option<Box<dyn FnMut(&str)>>,
+    error_handler: Option<ErrorHandlerFn>,
 }
 
 impl QSim {
@@ -1071,7 +1127,7 @@ impl QSim {
     }
 
     /// Set the error handler.
-    pub fn set_error_handler(&mut self, handler: Box<dyn FnMut(&str)>) {
+    pub fn set_error_handler(&mut self, handler: ErrorHandlerFn) {
         self.error_handler = Some(handler);
     }
 

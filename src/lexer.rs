@@ -221,7 +221,7 @@ impl Lexer {
                 }
             } else if ch.is_ascii_digit() || ch == b'_' {
                 self.advance();
-            } else if ch == b'.' && self.peek_byte_at(1).map_or(false, |c| c.is_ascii_digit()) {
+            } else if ch == b'.' && self.peek_byte_at(1).is_some_and(|c| c.is_ascii_digit()) {
                 // Float literal
                 is_float = true;
                 self.advance(); // .
@@ -244,7 +244,7 @@ impl Lexer {
                 break;
             } else if ch == b'e' || ch == b'E' {
                 // Scientific notation
-                if self.peek_byte_at(1).map_or(false, |c| c == b'+' || c == b'-' || c.is_ascii_digit()) {
+                if self.peek_byte_at(1).is_some_and(|c| c == b'+' || c == b'-' || c.is_ascii_digit()) {
                     is_float = true;
                     self.advance(); // e
                     if self.peek_byte() == Some(b'+') || self.peek_byte() == Some(b'-') {
@@ -291,20 +291,18 @@ impl Lexer {
         let mut escaped = false;
 
         // Check for WYSIWYG string: r"..."
-        if quote == b'r' || quote == b'R' {
-            if self.peek_byte() == Some(b'"') {
-                self.advance(); // skip "
-                while !self.is_eof() {
-                    let ch = self.peek_byte().unwrap();
-                    if ch == b'"' {
-                        self.advance();
-                        break;
-                    }
-                    result.push(ch as char);
+        if (quote == b'r' || quote == b'R') && self.peek_byte() == Some(b'"') {
+            self.advance(); // skip "
+            while !self.is_eof() {
+                let ch = self.peek_byte().unwrap();
+                if ch == b'"' {
                     self.advance();
+                    break;
                 }
-                return Token::new(TokenType::StringLit, result, loc.line, loc.col, loc.offset);
+                result.push(ch as char);
+                self.advance();
             }
+            return Token::new(TokenType::StringLit, result, loc.line, loc.col, loc.offset);
         }
 
         // Regular string literal
@@ -417,7 +415,7 @@ impl Lexer {
             }
             _ => {
                 // If it's a Unicode letter, treat as identifier
-                if ch.map_or(false, |c| c.is_alphabetic()) {
+                if ch.is_some_and(|c| c.is_alphabetic()) {
                     Some(Token::new(TokenType::Identifier, seq.into(), loc.line, loc.col, loc.offset))
                 } else {
                     None
@@ -464,7 +462,7 @@ impl Lexer {
         }
 
         // String literal
-        if ch == b'"' || ch == b'r' && self.peek_byte_at(1) == Some(b'"') {
+        if ch == b'"' || (ch == b'r' || ch == b'R') && self.peek_byte_at(1) == Some(b'"') {
             return self.read_string();
         }
 
@@ -476,7 +474,7 @@ impl Lexer {
         // Numeric literal
         if ch.is_ascii_digit() {
             // Check for . followed by digit (float starting with .)
-            if ch == b'.' && self.peek_byte_at(1).map_or(false, |c| c.is_ascii_digit()) {
+            if ch == b'.' && self.peek_byte_at(1).is_some_and(|c| c.is_ascii_digit()) {
                 return self.read_number();
             }
             return self.read_number();
@@ -484,7 +482,7 @@ impl Lexer {
 
         // Dot: . can be float start or field access
         if ch == b'.' {
-            if self.peek_byte_at(1).map_or(false, |c| c.is_ascii_digit()) {
+            if self.peek_byte_at(1).is_some_and(|c| c.is_ascii_digit()) {
                 if self.pos > 0 && self.source[self.pos - 1].is_ascii_digit() {
                     // Part of a float started earlier, let read_number handle it
                 }
@@ -511,22 +509,22 @@ impl Lexer {
                     return tok;
                 }
                 self.advance();
-                return Token::new(TokenType::Error,
+                Token::new(TokenType::Error,
                     format!("unexpected unicode character at byte {}", ch),
-                    loc.line, loc.col, loc.offset);
+                    loc.line, loc.col, loc.offset)
             }
 
             // Delimiters
-            b'(' => { self.advance(); return Token::new(TokenType::LParen, "(".into(), loc.line, loc.col, loc.offset); }
-            b')' => { self.advance(); return Token::new(TokenType::RParen, ")".into(), loc.line, loc.col, loc.offset); }
-            b'{' => { self.advance(); return Token::new(TokenType::LBrace, "{".into(), loc.line, loc.col, loc.offset); }
-            b'}' => { self.advance(); return Token::new(TokenType::RBrace, "}".into(), loc.line, loc.col, loc.offset); }
-            b'[' => { self.advance(); return Token::new(TokenType::LBracket, "[".into(), loc.line, loc.col, loc.offset); }
-            b']' => { self.advance(); return Token::new(TokenType::RBracket, "]".into(), loc.line, loc.col, loc.offset); }
-            b';' => { self.advance(); return Token::new(TokenType::Semicolon, ";".into(), loc.line, loc.col, loc.offset); }
-            b',' => { self.advance(); return Token::new(TokenType::Comma, ",".into(), loc.line, loc.col, loc.offset); }
-            b'?' => { self.advance(); return Token::new(TokenType::Question, "?".into(), loc.line, loc.col, loc.offset); }
-            b'@' => { self.advance(); return Token::new(TokenType::At, "@".into(), loc.line, loc.col, loc.offset); }
+            b'(' => { self.advance(); Token::new(TokenType::LParen, "(".into(), loc.line, loc.col, loc.offset) }
+            b')' => { self.advance(); Token::new(TokenType::RParen, ")".into(), loc.line, loc.col, loc.offset) }
+            b'{' => { self.advance(); Token::new(TokenType::LBrace, "{".into(), loc.line, loc.col, loc.offset) }
+            b'}' => { self.advance(); Token::new(TokenType::RBrace, "}".into(), loc.line, loc.col, loc.offset) }
+            b'[' => { self.advance(); Token::new(TokenType::LBracket, "[".into(), loc.line, loc.col, loc.offset) }
+            b']' => { self.advance(); Token::new(TokenType::RBracket, "]".into(), loc.line, loc.col, loc.offset) }
+            b';' => { self.advance(); Token::new(TokenType::Semicolon, ";".into(), loc.line, loc.col, loc.offset) }
+            b',' => { self.advance(); Token::new(TokenType::Comma, ",".into(), loc.line, loc.col, loc.offset) }
+            b'?' => { self.advance(); Token::new(TokenType::Question, "?".into(), loc.line, loc.col, loc.offset) }
+            b'@' => { self.advance(); Token::new(TokenType::At, "@".into(), loc.line, loc.col, loc.offset) }
 
             // Multi-character operators
             b':' => {
@@ -535,7 +533,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::Assign, ":=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Colon, ":".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Colon, ":".into(), loc.line, loc.col, loc.offset)
             }
             b'=' => {
                 self.advance();
@@ -547,7 +545,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::FatArrow, "=>".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Assign, "=".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Assign, "=".into(), loc.line, loc.col, loc.offset)
             }
             b'!' => {
                 self.advance();
@@ -555,7 +553,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::Neq, "!=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Not, "!".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Not, "!".into(), loc.line, loc.col, loc.offset)
             }
             b'<' => {
                 self.advance();
@@ -571,7 +569,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::LeftArrow, "<-".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Lt, "<".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Lt, "<".into(), loc.line, loc.col, loc.offset)
             }
             b'>' => {
                 self.advance();
@@ -587,7 +585,7 @@ impl Lexer {
                     }
                     return Token::new(TokenType::Shr, ">>".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Gt, ">".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Gt, ">".into(), loc.line, loc.col, loc.offset)
             }
             b'-' => {
                 self.advance();
@@ -599,7 +597,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::MinusAssign, "-=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Minus, "-".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Minus, "-".into(), loc.line, loc.col, loc.offset)
             }
             b'+' => {
                 self.advance();
@@ -607,7 +605,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::PlusAssign, "+=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Plus, "+".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Plus, "+".into(), loc.line, loc.col, loc.offset)
             }
             b'*' => {
                 self.advance();
@@ -615,7 +613,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::MulAssign, "*=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Mul, "*".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Mul, "*".into(), loc.line, loc.col, loc.offset)
             }
             b'/' => {
                 self.advance();
@@ -623,7 +621,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::DivAssign, "/=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Div, "/".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Div, "/".into(), loc.line, loc.col, loc.offset)
             }
             b'%' => {
                 self.advance();
@@ -631,7 +629,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::ModAssign, "%=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Mod, "%".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Mod, "%".into(), loc.line, loc.col, loc.offset)
             }
             b'&' => {
                 self.advance();
@@ -639,7 +637,7 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::And, "&&".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Amp, "&".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Amp, "&".into(), loc.line, loc.col, loc.offset)
             }
             b'|' => {
                 self.advance();
@@ -647,22 +645,22 @@ impl Lexer {
                     self.advance();
                     return Token::new(TokenType::Or, "||".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Pipe, "|".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Pipe, "|".into(), loc.line, loc.col, loc.offset)
             }
-            b'^' => { self.advance(); return Token::new(TokenType::Power, "^".into(), loc.line, loc.col, loc.offset); }
+            b'^' => { self.advance(); Token::new(TokenType::Power, "^".into(), loc.line, loc.col, loc.offset) }
             b'~' => {
                 self.advance();
                 if self.peek_byte() == Some(b'=') {
                     self.advance();
                     return Token::new(TokenType::Assign, "~=".into(), loc.line, loc.col, loc.offset);
                 }
-                return Token::new(TokenType::Tilde, "~".into(), loc.line, loc.col, loc.offset);
+                Token::new(TokenType::Tilde, "~".into(), loc.line, loc.col, loc.offset)
             }
-            b'_' => { self.advance(); return Token::new(TokenType::Underscore, "_".into(), loc.line, loc.col, loc.offset); }
+            b'_' => { self.advance(); Token::new(TokenType::Underscore, "_".into(), loc.line, loc.col, loc.offset) }
 
             // Letters (identifiers/keywords)
             b'a'..=b'z' | b'A'..=b'Z' => {
-                return self.read_identifier();
+                self.read_identifier()
             }
 
             _ => {

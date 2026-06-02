@@ -33,6 +33,10 @@ pub mod qsim;
 pub mod hqir;
 pub mod options;
 
+/// WASM bindings (conditionally compiled for wasm32).
+#[cfg(target_arch = "wasm32")]
+pub mod wasm;
+
 // Re-export key types for convenience
 pub use ast::{
     Expression, Declaration, NumericType,
@@ -41,4 +45,5 @@ pub use lexer::Lexer;
 pub use parser::Parser;
 pub use errors::{ErrorHandler, SimpleErrorHandler};
 pub use qsim::{QSim, QState, Interpreter};
+#[cfg(not(target_arch = "wasm32"))]
 pub use modules::import_module;

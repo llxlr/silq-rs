@@ -31,7 +31,11 @@ fn get_numeric_type(expr: &Expression) -> Option<NumericType> {
 pub fn is_classical_type(expr: &Expression) -> bool {
     match expr {
         Expression::Type { kind: TypeKind::Classical(_), .. } => true,
-        Expression::Type { kind: TypeKind::Numeric(_), .. } => true,
+        // ℕ,ℤ,ℚ,ℝ are inherently classical; 𝔹,ℂ are quantum unless wrapped in Classical
+        Expression::Type { kind: TypeKind::Numeric(nt), .. } => match nt {
+            NumericType::Bool | NumericType::Complex => false,
+            NumericType::Nat | NumericType::Int | NumericType::Rat | NumericType::Real => true,
+        },
         Expression::Type { kind: TypeKind::FixedInt(ref fit), .. } => fit.is_classical,
         Expression::Type { kind: TypeKind::ZMod(ref zm), .. } => zm.is_classical,
         Expression::Type { kind: TypeKind::Unit, .. } => true,

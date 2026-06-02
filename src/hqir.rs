@@ -7,6 +7,7 @@ use crate::ast::{Declaration, Expression};
 use std::collections::HashMap;
 
 /// The HQIR writer emits quantum IR text.
+#[derive(Default)]
 pub struct HqirWriter {
     /// Output buffer.
     output: String,
@@ -59,13 +60,10 @@ impl HqirWriter {
 
     /// Compile a single function to HQIR.
     pub fn compile_function(&mut self, func: &Declaration) {
-        match func {
-            Declaration::FunctionDef { name, params, .. } => {
-                self.writeln(&format!("// function: {:?}", name));
-                self.writeln(&format!("// params: {}", params.len()));
-                self.writeln("// TODO: emit HQIR operations");
-            }
-            _ => {}
+        if let Declaration::FunctionDef { name, params, .. } = func {
+            self.writeln(&format!("// function: {:?}", name));
+            self.writeln(&format!("// params: {}", params.len()));
+            self.writeln("// TODO: emit HQIR operations");
         }
     }
 

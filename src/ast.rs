@@ -16,9 +16,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 // =============================================================================
 
 /// The semantic processing state of an AST node.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SemState {
     /// Initial state, before any semantic analysis.
+    #[default]
     Initial,
     /// Semantic analysis has started for this node.
     Started,
@@ -31,14 +32,6 @@ pub enum SemState {
     /// An error occurred during semantic analysis.
     Error,
 }
-
-impl Default for SemState {
-    fn default() -> Self { SemState::Initial }
-}
-
-// =============================================================================
-// String Interning for Identifiers
-// =============================================================================
 
 /// A unique ID counter for generating fresh names.
 static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -56,6 +49,7 @@ impl Id {
 }
 
 /// Global string interner for identifiers.
+#[derive(Clone, Default)]
 pub struct Interner {
     strings: Vec<String>,
     map: HashMap<String, usize>,
@@ -106,8 +100,9 @@ pub trait Node {
 // =============================================================================
 
 /// Annotation for function parameters (const, moved, etc.).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CaptureAnnotation {
+    #[default]
     None,
     Const,
     Moved,
@@ -115,22 +110,15 @@ pub enum CaptureAnnotation {
     Spent,
 }
 
-impl Default for CaptureAnnotation {
-    fn default() -> Self { CaptureAnnotation::None }
-}
-
 /// Function-level annotation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Annotation {
+    #[default]
     None,
     Mfree,    // measurement-free
     Qfree,    // quantum-free
     Lifted,   // lifted (classical re-interpretation)
     Wild,     // wildcard (anything goes)
-}
-
-impl Default for Annotation {
-    fn default() -> Self { Annotation::None }
 }
 
 /// Silq numeric type hierarchy: Bool <: N <: Z <: Q <: R <: C
@@ -269,8 +257,11 @@ impl TypeKind {
             TypeKind::Classical(_) => true,
             TypeKind::TypeMeta { variant: TypeMetaKind::Ctype } => true,
             TypeKind::Unit => true,
-            // Numeric types are classical unless marked otherwise
-            TypeKind::Numeric(_) => false, // In Silq, B is quantum, !B is classical
+            // Numeric types: ℕ,ℤ,ℚ,ℝ are inherently classical; 𝔹,ℂ are quantum by default
+            TypeKind::Numeric(nt) => match nt {
+                NumericType::Bool | NumericType::Complex => false,
+                NumericType::Nat | NumericType::Int | NumericType::Rat | NumericType::Real => true,
+            },
             TypeKind::Aggregate { .. } => false,
             TypeKind::FixedInt(fit) => fit.is_classical,
             TypeKind::ZMod(zm) => zm.is_classical,

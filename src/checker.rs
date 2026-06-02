@@ -11,6 +11,7 @@ use crate::scope::Scope;
 use std::collections::HashSet;
 
 /// The checker verifies resource usage correctness.
+#[derive(Default)]
 pub struct Checker {
     /// Variables that have been consumed (used up).
     consumed: HashSet<usize>,
@@ -58,12 +59,11 @@ impl Checker {
     /// Check an expression for resource correctness.
     fn check_expr(&mut self, expr: &Expression) {
         match expr {
-            Expression::Identifier { name, .. } => {
-                if self.consumed.contains(&name.0) {
-                    self.errors += 1;
-                    eprintln!("[checker error] use of consumed variable");
-                }
+            Expression::Identifier { name, .. } if self.consumed.contains(&name.0) => {
+                self.errors += 1;
+                eprintln!("[checker error] use of consumed variable");
             }
+            Expression::Identifier { .. } => {}
 
             Expression::Binary { left, right, .. } => {
                 self.check_expr(left);
@@ -116,11 +116,10 @@ impl Checker {
                 self.check_expr(body);
             }
 
-            Expression::Return { expr, .. } => {
-                if let Some(e) = expr {
-                    self.check_expr(e);
-                }
+            Expression::Return { expr: Some(e), .. } => {
+                self.check_expr(e);
             }
+            Expression::Return { expr: None, .. } => {}
 
             Expression::Forget { variable, .. } => {
                 if let Expression::Identifier { name, .. } = variable.as_ref() {

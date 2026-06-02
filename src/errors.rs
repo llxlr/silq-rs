@@ -1,6 +1,7 @@
 //! Error handling and diagnostic infrastructure.
 
-use colored::*;
+#[cfg(feature = "colored")]
+use colored::Colorize;
 use std::fmt;
 
 /// Location in source code.
@@ -65,41 +66,28 @@ pub trait ErrorHandler {
 }
 
 /// Simple terminal-based error handler.
+#[derive(Default)]
 pub struct SimpleErrorHandler {
     pub errors: Vec<(Location, String, ErrorType)>,
 }
 
 impl SimpleErrorHandler {
     pub fn new() -> Self {
-        SimpleErrorHandler { errors: vec![] }
+        Self::default()
     }
 
     fn emit(&mut self, loc: &Location, msg: &str, etype: ErrorType) {
         self.errors.push((loc.clone(), msg.to_string(), etype));
+        let label = etype.as_str();
         match etype {
             ErrorType::Error | ErrorType::RunError => {
-                eprintln!(
-                    "{} {}: {}",
-                    loc,
-                    etype.as_str().red().bold(),
-                    msg
-                );
+                eprintln!("{} {}: {}", loc, color_red_bold(label), msg);
             }
             ErrorType::Warning => {
-                eprintln!(
-                    "{} {}: {}",
-                    loc,
-                    etype.as_str().yellow().bold(),
-                    msg
-                );
+                eprintln!("{} {}: {}", loc, color_yellow_bold(label), msg);
             }
             ErrorType::Note => {
-                eprintln!(
-                    "{} {}: {}",
-                    loc,
-                    etype.as_str().cyan().bold(),
-                    msg
-                );
+                eprintln!("{} {}: {}", loc, color_cyan_bold(label), msg);
             }
             ErrorType::Message => {
                 eprintln!("{}", msg);
@@ -137,13 +125,14 @@ impl ErrorHandler for SimpleErrorHandler {
 }
 
 /// JSON-based error handler for tooling integration.
+#[derive(Default)]
 pub struct JsonErrorHandler {
     pub diagnostics: Vec<json::Value>,
 }
 
 impl JsonErrorHandler {
     pub fn new() -> Self {
-        JsonErrorHandler { diagnostics: vec![] }
+        Self::default()
     }
 
     fn make_diag(loc: &Location, msg: &str, severity: ErrorType) -> json::Value {
@@ -197,7 +186,7 @@ impl ErrorHandler for JsonErrorHandler {
     fn flush(&mut self) {
         use std::io::Write;
         for diag in &self.diagnostics {
-            let json_str = json::to_string_pretty(diag).unwrap_or_default();
+            let json_str = json::to_string_pretty(diag);
             let _ = std::io::stderr().write_all(json_str.as_bytes());
             let _ = std::io::stderr().write_all(b"\n");
         }
@@ -241,8 +230,8 @@ pub mod json {
         }
     }
 
-    pub fn to_string_pretty(val: &Value) -> Result<String, ()> {
-        Ok(format_val(val, 0))
+    pub fn to_string_pretty(val: &Value) -> String {
+        format_val(val, 0)
     }
 
     fn format_val(val: &Value, indent: usize) -> String {
@@ -269,4 +258,36 @@ pub mod json {
             }
         }
     }
+}
+
+// ---- Terminal color helpers (guarded by `colored` feature) ----
+
+#[cfg(feature = "colored")]
+fn color_red_bold(s: &str) -> String {
+    format!("{}", s.red().bold())
+}
+
+#[cfg(not(feature = "colored"))]
+fn color_red_bold(s: &str) -> String {
+    s.to_string()
+}
+
+#[cfg(feature = "colored")]
+fn color_yellow_bold(s: &str) -> String {
+    format!("{}", s.yellow().bold())
+}
+
+#[cfg(not(feature = "colored"))]
+fn color_yellow_bold(s: &str) -> String {
+    s.to_string()
+}
+
+#[cfg(feature = "colored")]
+fn color_cyan_bold(s: &str) -> String {
+    format!("{}", s.cyan().bold())
+}
+
+#[cfg(not(feature = "colored"))]
+fn color_cyan_bold(s: &str) -> String {
+    s.to_string()
 }

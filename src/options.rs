@@ -1,16 +1,11 @@
 //! Compiler options and language configuration.
 
 /// Language variant (silq vs psi).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Language {
+    #[default]
     Silq,
     Psi,
-}
-
-impl Default for Language {
-    fn default() -> Self {
-        Language::Silq
-    }
 }
 
 /// Compiler configuration options.

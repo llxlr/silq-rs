@@ -244,7 +244,7 @@ impl SemanticAnalyzer {
                 }
 
                 // Analyze the body
-                self.semantic_expr(&mut *func_body);
+                self.semantic_expr(&mut func_body);
 
                 // Restore the old scope
                 self.scope = old_scope;

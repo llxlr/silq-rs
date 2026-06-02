@@ -14,37 +14,45 @@ This file provides guidance to Claude Code (claude.ai) when working with code in
 ## Build & Test Commands
 
 ```bash
-cargo build              # Debug build
-cargo build --release    # Release build
+cargo build              # Debug build (native)
+cargo build --release    # Release build (native)
 cargo test               # Run all tests (10 unit tests)
 cargo test lexer         # Run specific test module
 cargo test test_parse    # Run tests matching pattern
 cargo fmt                # Format code
-cargo clippy             # Lint
+cargo clippy             # Lint (should be 0 warnings)
 cargo run -- --help      # Run binary with args
+
+# Cross-compilation
+cargo build --release --target x86_64-pc-windows-msvc                        # Windows .exe + .dll
+cargo build --release --target wasm32-unknown-unknown --no-default-features  # WASM (35 KB)
+cargo build --target wasm32-unknown-unknown --no-default-features --features wasm  # WASM + wasm-bindgen
 ```
+
+**Clippy status: 0 warnings.** All clippy warnings have been resolved across the codebase.
 
 ## Project Structure
 
 ```
 src/
-├── main.rs          # CLI entry point (196 lines)
-├── lib.rs           # Library root, re-exports
+├── main.rs          # CLI entry point
+├── lib.rs           # Library root, re-exports, WASM feature gate
 ├── token.rs         # Token types, keywords, operator precedence tables
 ├── lexer.rs         # UTF-8 lexer, Unicode math symbols, nested comments
-├── parser.rs        # Pratt precedence-climbing recursive descent parser (with := infix handling)
-├── ast.rs           # AST (Expression enum 37 variants, Declaration, TypeKind, Interner)
+├── parser.rs        # Pratt precedence-climbing recursive descent parser
+├── ast.rs           # AST (Expression 37 variants, Declaration, TypeKind, Interner)
 ├── scope.rs         # Nested symbol table with name interning
 ├── semantic.rs      # Name resolution and scope management
 ├── checker.rs       # Linear type resource checker (const/moved tracking)
-├── consteval.rs     # Compile-time constant expression evaluation
-├── conversion.rs    # Numeric type conversion (Bool <: N <: Z <: Q <: R <: C)
+├── consteval.rs     # Compile-time constant expression evaluation (including UnaryPlus)
+├── conversion.rs    # Type classicality judgment (ℕ/ℤ/ℚ/ℝ inherent, 𝔹/ℂ by wrapper)
 ├── reverse.rs       # Automatic adjoint/uncomputation transformation
 ├── modules.rs       # Module import system, prelude loading via include_str!
-├── errors.rs        # Error diagnostics (terminal + JSON backends)
-├── qsim.rs          # Quantum simulator: QState state vector, Interpreter, gates
+├── errors.rs        # Error diagnostics (terminal + JSON), color conditional on `colored` feature
+├── qsim.rs          # Quantum simulator: QState, Interpreter, gates, phase (global)
 ├── hqir.rs          # HQIR (High-level Quantum IR) backend stub
-└── options.rs       # Compiler configuration (Language::Silq|Psi, Options struct)
+├── options.rs       # Compiler configuration (Language::Silq|Psi, Options struct)
+└── wasm.rs          # WASM bindings (wasm32 only): run_silq, parse_silq, tokenize_silq
 ```
 
 ## Compilation Pipeline
@@ -69,7 +77,15 @@ In Silq, types are expressions (dependent types). The Rust AST uses a single `Ex
 
 ### Quantum Simulation
 
-`QState` uses sparse `BTreeMap<BasisState, Complex64>` for state vectors. `alloc_qubit()` initializes the state vector with `|0⟩` amplitude on qubit allocation. Gates are applied as 2×2 unitary matrices. Measurement uses `fastrand` for true random number generation and collapses with probability normalization.
+`QState` uses sparse `BTreeMap<BasisState, Complex64>` for state vectors. `alloc_qubit()` initializes the state vector with `|0⟩` amplitude via tensor product. Gates are applied as 2×2 unitary matrices (`apply_1q_gate`). `phase()` applies global phase via `apply_global_phase(phi)` — multiplying all amplitudes by e^(i*phi). Measurement uses `fastrand` for true random number generation and collapses with probability normalization.
+
+### Type System: Classical vs Quantum
+
+Per Silq spec: `ℕ, ℤ, ℚ, ℝ` are **inherently classical** (no `!` prefix needed). `𝔹` and `ℂ` are **quantum by default** — `!𝔹` / `!ℂ` makes them classical. This is enforced in both `TypeKind::is_classical()` (ast.rs) and `is_classical_type()` (conversion.rs).
+
+### Interner Sharing
+
+`Interner` must be **shared** between parser and semantic analyzer (not re-created) so that interned `Id` values match. `Interner` derives `Clone` for this purpose — use `interner.clone()` when ownership is consumed.
 
 ### Standard Library
 
@@ -105,14 +121,38 @@ BasisState       // computational basis (Vec<u8> of 0/1 per qubit)
 
 | Feature | Status |
 |---------|--------|
-| Lexer | Full |
-| Parser | Full (:= assignment as infix operator) |
-| Quantum simulator | Qubit allocation, gates, measurement (true random) |
+| Lexer | Full (R/r raw strings, Unicode, nested comments) |
+| Parser | Full (:= assignment, λ params, element assignment) |
+| Quantum simulator | Qubit allocation, gates, measurement, global phase |
+| Type classicality | ℕ/ℤ/ℚ/ℝ inherent, 𝔹/ℂ quantum-by-default |
 | Type inference (HM-like) | Name resolution only |
 | Operator lowerings | Not implemented |
 | Full reverse transformation | Stub |
 | HQIR backend | Stub |
 | Linearity checker | Basic |
+
+## WASM / Cross-Platform
+
+The crate compiles to both native (Windows/Linux) and WASM targets:
+
+| Feature | Native | WASM |
+|---------|--------|------|
+| `colored` terminal output | Yes | No (plain text) |
+| `std::fs` module loading | Yes | No (cfg gated) |
+| `std::process::exit` | Yes | No (returns Err) |
+| Prelude loading (`include_str!`) | Yes | Yes |
+| wasm-bindgen exports | No | Optional (`--features wasm`) |
+
+**Cargo features:**
+- `default = ["terminal"]` — enables colored terminal output
+- `terminal` — pulls in `colored` crate
+- `wasm` — pulls in `wasm-bindgen`, enables JS-exportable functions in `src/wasm.rs`
+
+**WASM exports** (`src/wasm.rs`, wasm32 only):
+- `run_silq(source: &str) -> String` — parse and execute Silq code
+- `run_silq_dump(source: &str) -> String` — execute and dump quantum state
+- `parse_silq(source: &str) -> String` — parse only, return AST debug
+- `tokenize_silq(source: &str) -> String` — tokenize only
 
 ## Important Notes
 

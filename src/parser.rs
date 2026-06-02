@@ -206,19 +206,17 @@ impl<'a> Parser<'a> {
                 self.parse_let(None)
             }
 
-            TokenType::KwLambda | TokenType::KwTypeof => {
-                let ty = self.current.ty;
+            TokenType::KwLambda => {
                 self.advance();
-                match ty {
-                    TokenType::KwLambda => self.parse_lambda(loc, Vec::new()),
-                    TokenType::KwTypeof => {
-                        let _ = self.expect(TokenType::LParen);
-                        let expr = self.parse_expression();
-                        let _ = self.expect(TokenType::RParen);
-                        Expression::Typeof { loc, expr: Box::new(expr) }
-                    }
-                    _ => unreachable!(),
-                }
+                self.parse_lambda(loc)
+            }
+
+            TokenType::KwTypeof => {
+                self.advance();
+                let _ = self.expect(TokenType::LParen);
+                let expr = self.parse_expression();
+                let _ = self.expect(TokenType::RParen);
+                Expression::Typeof { loc, expr: Box::new(expr) }
             }
 
             TokenType::KwIf => {
@@ -428,7 +426,7 @@ impl<'a> Parser<'a> {
             _ => {
                 let expr = self.parse_expression();
 
-                // Check for assignment: x := y  or  x <- y
+                // Check for assignment: x := y  or  x <- y  or  e[i] := y
                 if self.check(TokenType::Assign) || self.check(TokenType::LeftArrow) {
                     let assign_ty = self.current.ty;
                     let assign_loc = self.cur_location();
@@ -442,13 +440,18 @@ impl<'a> Parser<'a> {
                         };
                     } else {
                         // := is a define (let with implicit name from expr)
-                        // For a simple case, treat like let
                         if let Expression::Identifier { name, .. } = &expr {
                             return Expression::new_let(
                                 assign_loc, *name, None, value,
                                 Expression::Identifier { loc, name: *name, meaning: None, classical: false },
                             );
                         }
+                        // Non-identifier target (e.g., vec[i] := x): treat as assignment
+                        return Expression::Assign {
+                            loc: assign_loc,
+                            target: Box::new(expr),
+                            value: Box::new(value),
+                        };
                     }
                 }
 
@@ -731,15 +734,19 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Parse a lambda expression: λ(params) => body
-    fn parse_lambda(&mut self, loc: Location, params: Vec<Id>) -> Expression {
-        // Convert Id params to Declaration params
-        let params: Vec<Expression> = params.into_iter().map(|id| {
-            Expression::new_identifier(Location::default(), id)
-        }).collect();
-
+    /// Parse a lambda expression: λ(const x1: τ1, ...). body
+    fn parse_lambda(&mut self, loc: Location) -> Expression {
+        // Parse parameters: (const x1: τ1, ..., const xn: τn)
+        let params = self.parse_lambda_params();
         let annotation = self.parse_annotation();
-        let body = if self.matches(TokenType::FatArrow) {
+        // Body separator: `.` block, `=>` expr, or `{` block
+        let body = if self.matches(TokenType::Dot) {
+            if self.check(TokenType::LBrace) {
+                self.parse_compound()
+            } else {
+                self.parse_expression()
+            }
+        } else if self.matches(TokenType::FatArrow) {
             self.parse_expression()
         } else if self.check(TokenType::LBrace) {
             self.parse_compound()
@@ -748,6 +755,50 @@ impl<'a> Parser<'a> {
         };
 
         Expression::new_lambda(loc, params, body, annotation)
+    }
+
+    /// Parse lambda parameter list: (const x1: τ1, ...)
+    fn parse_lambda_params(&mut self) -> Vec<Expression> {
+        if !self.check(TokenType::LParen) {
+            // Single untyped parameter without parens: λx. body
+            if self.check(TokenType::Identifier) {
+                let name = self.interner.intern(&self.current.text);
+                let loc = self.cur_location();
+                self.advance();
+                return vec![Expression::new_identifier(loc, name)];
+            }
+            return vec![];
+        }
+
+        self.advance(); // skip (
+        let mut params = Vec::new();
+        if !self.check(TokenType::RParen) {
+            params.push(self.parse_lambda_param());
+            while self.matches(TokenType::Comma) {
+                if self.check(TokenType::RParen) {
+                    break;
+                }
+                params.push(self.parse_lambda_param());
+            }
+        }
+        let _ = self.expect(TokenType::RParen).ok();
+        params
+    }
+
+    /// Parse a single lambda parameter: [const] name [: type]
+    fn parse_lambda_param(&mut self) -> Expression {
+        // Skip const annotation for lambda params
+        if self.check(TokenType::KwConst) {
+            self.advance();
+        }
+        let name = self.interner.intern(&self.current.text);
+        let loc = self.cur_location();
+        self.advance();
+        // Optional type annotation -- parsed but attached via name resolution later
+        if self.matches(TokenType::Colon) {
+            let _type_expr = self.parse_expression();
+        }
+        Expression::new_identifier(loc, name)
     }
 
     // ---- Infix parsing (led - left denotation) ----
@@ -963,10 +1014,10 @@ fn parse_int_literal(text: &str) -> num_bigint::BigInt {
     use num_bigint::BigInt;
     let text = text.replace('_', "");
 
-    if text.len() > 2 && &text[..2] == "0x" {
-        BigInt::parse_bytes(text[2..].as_bytes(), 16).unwrap_or_else(|| BigInt::from(0))
-    } else if text.len() > 2 && &text[..2] == "0b" {
-        BigInt::parse_bytes(text[2..].as_bytes(), 2).unwrap_or_else(|| BigInt::from(0))
+    if text.len() > 2 && text.as_bytes()[..2] == *b"0x" {
+        BigInt::parse_bytes(&text.as_bytes()[2..], 16).unwrap_or_else(|| BigInt::from(0))
+    } else if text.len() > 2 && text.as_bytes()[..2] == *b"0b" {
+        BigInt::parse_bytes(&text.as_bytes()[2..], 2).unwrap_or_else(|| BigInt::from(0))
     } else {
         BigInt::parse_bytes(text.as_bytes(), 10).unwrap_or_else(|| BigInt::from(0))
     }

@@ -2,6 +2,14 @@
 /target/
 **/*.rs.bk
 *.pdb
+*.dll.lib
+*.dll.exp
+
+# Build & distribution
+/dist/
+*.wasm
+*.wasm.dwp
+pkg/
 
 # IDE
 .idea/
@@ -9,6 +17,7 @@
 *.swp
 *.swo
 *~
+*.bak
 
 # OS
 .DS_Store

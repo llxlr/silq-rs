@@ -1,6 +1,6 @@
 [package]
 name = "silq"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Silq quantum programming language - Rust implementation"
 license = "BSL-1.0"
@@ -10,10 +10,24 @@ repository = "https://github.com/tgehr/silq"
 name = "silq"
 path = "src/main.rs"
 
+[lib]
+name = "silq"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = ["terminal"]
+terminal = ["colored"]
+wasm = ["wasm-bindgen"]
+
 [dependencies]
 num-complex = "0.4"
 num-traits = "0.2"
 num-bigint = "0.4"
 itertools = "0.13"
-colored = "2"
 fastrand = "2"
+
+# Optional: terminal color output (disabled for WASM)
+colored = { version = "2", optional = true }
+
+# Optional: WASM bindings
+wasm-bindgen = { version = "0.2", optional = true }

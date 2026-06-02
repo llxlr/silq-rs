@@ -100,7 +100,7 @@ fn process_file(path: &str, run: bool, compile: bool, check_only: bool,
     let source = fs::read_to_string(path)
         .map_err(|e| format!("cannot read file: {}", e))?;
 
-    // Create interner and lexer
+    // Create shared interner for parsing and semantic analysis
     let mut interner = silq::ast::Interner::new();
     let mut lexer = silq::Lexer::new(&source);
 
@@ -116,9 +116,9 @@ fn process_file(path: &str, run: bool, compile: bool, check_only: bool,
         return Err("empty program".into());
     }
 
-    // Semantic analysis
+    // Semantic analysis — clone interner so QSim can still use the original
     let scope = silq::scope::Scope::global();
-    let mut analyzer = silq::semantic::SemanticAnalyzer::new(silq::ast::Interner::new(), scope);
+    let mut analyzer = silq::semantic::SemanticAnalyzer::new(interner.clone(), scope);
     analyzer.semantic_program(&mut ast);
 
     // Check mode only

@@ -111,6 +111,10 @@ pub fn const_eval(expr: &Expression) -> Option<LiteralValue> {
             let rval = const_eval(right)?;
             eval_binary_literal(&lval, &rval, *op)
         }
+        Expression::UnaryPlus { expr, .. } => {
+            // Unary plus is identity
+            const_eval(expr)
+        }
         Expression::UnaryMinus { expr, .. } => {
             let val = const_eval(expr)?;
             match val {
