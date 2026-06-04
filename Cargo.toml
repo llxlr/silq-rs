@@ -4,7 +4,7 @@ version = "0.1.2"
 edition = "2021"
 description = "Silq quantum programming language - Rust implementation"
 license = "BSL-1.0"
-repository = "https://github.com/tgehr/silq"
+repository = "https://github.com/llxlr/silq-rs"
 
 [[bin]]
 name = "silq"

@@ -1093,4 +1093,20 @@ mod tests {
             assert_eq!(arguments.len(), 3);
         }
     }
+
+    #[test]
+    fn test_parse_tuple_debug() {
+        let source = "(true, false)";
+        let mut interner = Interner::new();
+        let mut lexer = Lexer::new(source);
+        let mut parser = Parser::new(&mut lexer, &mut interner);
+        let expr = parser.parse_expression();
+        println!("discriminant: {:?}", std::mem::discriminant(&expr));
+        println!("{:#?}", expr);
+        // NOTE: (true, false) is currently parsed as Binary { op: Comma, .. }
+        // rather than Tuple { .. }. This is a known parser limitation:
+        // parenthesized comma-separated expressions should be lowered to
+        // Expression::Tuple during semantic analysis.
+        assert!(matches!(expr, Expression::Binary { op: crate::token::TokenType::Comma, .. }));
+    }
 }

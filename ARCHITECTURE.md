@@ -28,7 +28,7 @@
 
 ### 1. Token (token.rs)
 
-**位置:** `src/token.rs` | **行数:** 348
+**位置:** `src/token.rs` | **行数:** 348 | **TokenType:** ~92 变体
 
 定义所有 token 类型、关键字表和运算符优先级。
 
@@ -51,7 +51,7 @@
 
 ### 2. Lexer (lexer.rs)
 
-**位置:** `src/lexer.rs` | **行数:** 759
+**位置:** `src/lexer.rs` | **行数:** 755
 
 将源文本转换为 token 流。
 
@@ -66,43 +66,46 @@
 
 ### 3. AST (ast.rs)
 
-**位置:** `src/ast.rs` | **行数:** 916
+**位置:** `src/ast.rs` | **行数:** 906
 
 **核心类型层次:**
 
 ```
-Expression (枚举, 37 变体)
-├── 字面量: Literal
-├── 标识符: Identifier
+Expression (枚举, 35 变体)
+├── 字面量: Literal { value: LiteralValue (7 变体: Bool, Int, Float, Rational, String, Char, Unit) }
+├── 标识符: Identifier { name, meaning, classical }
 ├── 类型: Type { loc, kind: TypeKind }
 ├── 一元: UnaryPlus, UnaryMinus, LogicalNot, BitwiseNot
 ├── 二元: Binary { op, left, right }
 ├── 调用: Call { function, arguments, callee }
 ├── 控制流: IfThenElse, ForLoop, WhileLoop, Repeat, With
-├── 绑定: Let, Assign, Lambda
+├── 绑定: Let, Assign, Lambda { annotation: Annotation (None|Mfree|Qfree|Lifted|Wild) }
 ├── 组合: Compound, Tuple, Vector, Comma, Concat
 ├── 访问: Index, Slice, Field
-├── 注解: TypeAnnotation { kind: Colon|As|Coerce|Pun }
-└── 特殊: Forget, Assert, Return, Typeof, Wildcard, Error
+├── 注解: TypeAnnotation { kind: TypeAnnotationKind (Colon|As|Coerce|Pun) }
+└── 特殊: Forget, Assert, Return, Typeof, Wildcard, Error, Placeholder
 
 Declaration (枚举, 4 变体)
-├── VarDecl { name, dtype, vtype, initializer, capture }
-├── FunctionDef { name, params, body, annotation, ftype }
-├── DatDecl { name, type_params, fields, is_quantum }
+├── VarDecl { name, dtype, vtype, initializer, is_parameter, capture: CaptureAnnotation (None|Const|Moved|Once|Spent) }
+├── FunctionDef { name, params, body, annotation, ftype, is_main, is_lambda }
+├── DatDecl { name, type_params, fields, is_quantum, import_path }
 └── Import { path }
 
-TypeKind (枚举, 14 变体)
+TypeKind (枚举, 16 变体)
 ├── Numeric(NumericType)   // 𝔹, ℕ, ℤ, ℚ, ℝ, ℂ
-├── FixedInt { bits, signed, classical }
-├── ZMod { n, star, classical }
+├── FixedInt { bits, signed, is_classical }
+├── ZMod { n, star, is_classical }
 ├── Aggregate { name, type_args }
 ├── Unit, Bottom
 ├── Tuple(Vec<Expression>), Array(Box<Expression>)
 ├── Vector { element, length }
-├── Product { params, domain, codomain, annotation }  // 函数类型
+├── String
+├── Product { params, domain, codomain, annotation }  // 函数 / 依赖积类型
 ├── Classical(Box<Expression>)  // !T
-├── QNumeric, TypeMeta, Context
-└── TypeVar(usize)  // 类型推断变量
+├── QNumeric  // 量子数值超类型
+├── TypeVar(usize)  // 类型推断变量
+├── TypeMeta { variant: TypeMetaKind (Star|Ctype|Qtype|Etype|Utype) }  // 类型之类型
+└── Context(Vec<(Id, Expression)>)  // 隐式闭包环境类型
 ```
 
 **标识符系统:**
@@ -116,7 +119,7 @@ pub struct Interner {
 
 ### 4. Parser (parser.rs)
 
-**位置:** `src/parser.rs` | **行数:** 1,045
+**位置:** `src/parser.rs` | **行数:** 1,112
 
 Pratt 解析器（优先级爬升法），递归下降。
 
@@ -142,7 +145,7 @@ Pratt 解析器（优先级爬升法），递归下降。
 
 ### 5. 量子模拟器 (qsim.rs)
 
-**位置:** `src/qsim.rs` | **行数:** 1,097
+**位置:** `src/qsim.rs` | **行数:** 1,153
 
 核心后端，在经典计算机上模拟量子计算。
 
@@ -160,10 +163,10 @@ struct BasisState {
     bits: Vec<u8>,  // 计算基态 (qubit 值)
 }
 
-enum Value {            // 运行时值
-    Bool, Int, Float, Complex, Rational,
+enum Value {            // 运行时值 (12 变体)
+    Bool, Int, IntFixed, Float, Complex, Rational,
     QVar { index, name },  // 量子变量引用
-    Tuple, Array, Closure, Unit, Error,
+    Tuple, Array, Unit, Closure, Error,
 }
 ```
 
@@ -223,7 +226,7 @@ Value           (计算结果)
 ### 1. 表达式即类型
 
 在 Silq 中，类型就是表达式（依赖类型），因此 Rust AST 中
-`Expression` 和类型系统共用 `Expression::Type(TypeKind)` 变体。
+`Expression` 和类型系统共用 `Expression::Type { loc, kind: TypeKind }` 变体。
 
 ### 2. 稀疏状态向量
 
@@ -245,12 +248,12 @@ Value           (计算结果)
 
 | 方面 | D 实现 | Rust 实现 |
 |------|--------|-----------|
-| 代码量 | ~55,000 行 | ~5,754 行 |
+| 代码量 | ~55,000 行 | ~5,992 行 |
 | AST 节点 | 类层次 (虚函数) | 枚举 + match |
 | 内存管理 | GC | 所有权系统 |
 | 错误处理 | 异常 | Result<T, E> |
 | 并发 | 无 | 可安全添加 |
-| 测试 | 800+ 集成测试 | 10 单元测试 + 待扩展 |
+| 测试 | 800+ 集成测试 | 11 单元测试 + 待扩展 |
 | 类型推断 | 完整 (统一算法) | 基本 (名称解析) |
 | 逆变换 | 完整 | 框架实现 |
 | 运算符降级 | 完整 | 未实现 |

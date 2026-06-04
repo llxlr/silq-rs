@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai) when working with code in
 ```bash
 cargo build              # Debug build (native)
 cargo build --release    # Release build (native)
-cargo test               # Run all tests (10 unit tests)
+cargo test               # Run all tests (11 unit tests)
 cargo test lexer         # Run specific test module
 cargo test test_parse    # Run tests matching pattern
 cargo fmt                # Format code
@@ -40,7 +40,7 @@ src/
 ├── token.rs         # Token types, keywords, operator precedence tables
 ├── lexer.rs         # UTF-8 lexer, Unicode math symbols, nested comments
 ├── parser.rs        # Pratt precedence-climbing recursive descent parser
-├── ast.rs           # AST (Expression 37 variants, Declaration, TypeKind, Interner)
+├── ast.rs           # AST (Expression 35 variants, Declaration 4, TypeKind 16, LiteralValue 7)
 ├── scope.rs         # Nested symbol table with name interning
 ├── semantic.rs      # Name resolution and scope management
 ├── checker.rs       # Linear type resource checker (const/moved tracking)
@@ -58,14 +58,14 @@ src/
 ## Compilation Pipeline
 
 ```
-Source (.slq) → Lexer → Rarser → Semantic → Checker → Backend (QSim/HQIR)
+Source (.slq) → Lexer → Parser → Semantic → Checker → Backend (QSim/HQIR)
 ```
 
 ## Key Design Decisions
 
 ### AST: Expression = Type
 
-In Silq, types are expressions (dependent types). The Rust AST uses a single `Expression` enum where `Expression::Type { loc, kind: TypeKind }` represents type-level expressions. `TypeKind` has 14 variants (Numeric, Product, Vector, Array, etc.).
+In Silq, types are expressions (dependent types). The Rust AST uses a single `Expression` enum where `Expression::Type { loc, kind: TypeKind }` represents type-level expressions. `TypeKind` has 16 variants (Numeric, FixedInt, ZMod, Aggregate, Unit, Bottom, Tuple, Array, Vector, String, Product, Classical, QNumeric, TypeVar, TypeMeta, Context).
 
 ### Identifier Interning
 
@@ -89,7 +89,22 @@ Per Silq spec: `ℕ, ℤ, ℚ, ℝ` are **inherently classical** (no `!` prefix 
 
 ### Standard Library
 
-`library/prelude.slq` is embedded at compile time via `include_str!()`.
+`library/prelude.slq` (487 lines) is embedded at compile time via `include_str!()`. Defines quantum gates (H, X, Y, Z, S, T, CNOT, phase, rotX/Y/Z), arithmetic (gcd, pow_mod), trigonometric functions, complex numbers, and data types (`dat int[n]`, `dat uint[n]`, `dat ℤmod[N]`, `dat ℤstar[N]`). No `__uminus_*` or operator lowering functions are in the prelude (these live in the D version's `library/__internal/operators.slq`).
+
+### Interpreter Coverage (qsim.rs)
+
+The `Interpreter::eval()` handles 17 of 35 Expression variants directly. The following variants are **not yet handled** in qsim.rs:
+
+```rust
+// AST variants present but eval falls through to the catch-all _ arm:
+Error, Placeholder, Wildcard, Typeof,       // informational/error
+UnaryPlus, UnaryMinus, LogicalNot, BitwiseNot, // unary ops (not lowered)
+Index, Slice, Field,                         // projections
+Vector, Concat,                              // composite literals
+Repeat, Comma                                // control flow + tupling
+```
+
+Currently handled: Literal, Identifier, Binary (+, -, *, ==, !=, <, >), Call, Tuple, Let, Assign, Lambda (returns error), IfThenElse, With, ForLoop, WhileLoop, Return, Compound, TypeAnnotation (passthrough), Forget, Assert, Type, TypeDecl, TypeVar.
 
 ## Code Conventions
 
@@ -104,16 +119,28 @@ Per Silq spec: `ℕ, ℤ, ℚ, ℝ` are **inherently classical** (no `!` prefix 
 
 ```rust
 // Core enums
-Expression       // 37 variants (Literal, Binary, Call, IfThenElse, Lambda, ...)
+Expression       // 35 variants: Error, Literal, Identifier, Placeholder, Wildcard, Typeof,
+                 //   UnaryPlus, UnaryMinus, LogicalNot, BitwiseNot, Binary, Call, Index,
+                 //   Slice, Field, Tuple, Vector, Concat, Let, Assign, Lambda, IfThenElse,
+                 //   With, ForLoop, WhileLoop, Repeat, Return, Comma, Compound,
+                 //   TypeAnnotation, Forget, Assert, Type, TypeDecl, TypeVar
 Declaration      // 4 variants (VarDecl, FunctionDef, DatDecl, Import)
-TypeKind         // 14 variants (Numeric, Product, Vector, Array, Classical, ...)
+TypeKind         // 16 variants (Numeric, FixedInt, ZMod, Aggregate, Unit, Bottom,
+                 //   Tuple, Array, Vector, String, Product, Classical, QNumeric,
+                 //   TypeVar, TypeMeta, Context)
 NumericType      // 6 variants (Bool <: Nat <: Int <: Rat <: Real <: Complex)
-TokenType        // 60+ token types
+LiteralValue     // 7 variants (Bool, Int, Float, Rational, String, Char, Unit)
+Annotation       // 5 variants (None, Mfree, Qfree, Lifted, Wild)
+CaptureAnnotation // 6 variants (None, Const, Moved, Once, Spent)
+TypeAnnotationKind // 4 variants (Colon, As, Coerce, Pun)
+TokenType        // ~92 token types (6 literals, 16 delimiters, 6 assign, 7 arithmetic,
+                 //   6 comparison, 7 logical, 3 shift, 3 type-ops, 35 keywords, 2 special)
 
 // Quantum simulator
 QState           // amplitudes: BTreeMap<BasisState, Complex64>
 Interpreter      // walks AST against QState
-Value            // runtime values (Bool, Int, Float, QVar, Tuple, Closure, ...)
+Value            // runtime values (Bool, Int, IntFixed, Float, Complex, Rational,
+                 //   QVar, Tuple, Array, Unit, Closure, Error)
 BasisState       // computational basis (Vec<u8> of 0/1 per qubit)
 ```
 
@@ -122,7 +149,7 @@ BasisState       // computational basis (Vec<u8> of 0/1 per qubit)
 | Feature | Status |
 |---------|--------|
 | Lexer | Full (R/r raw strings, Unicode, nested comments) |
-| Parser | Full (:= assignment, λ params, element assignment) |
+| Parser | Full (:= assignment, λ params, element assignment) **Note:** parenthesized tuples like `(a, b)` are parsed as `Binary { op: Comma }` and must be lowered to `Tuple` in semantic analysis |
 | Quantum simulator | Qubit allocation, gates, measurement, global phase |
 | Type classicality | ℕ/ℤ/ℚ/ℝ inherent, 𝔹/ℂ quantum-by-default |
 | Type inference (HM-like) | Name resolution only |
@@ -160,3 +187,65 @@ The crate compiles to both native (Windows/Linux) and WASM targets:
 - All `Expression::Type(TypeKind::...)` constructions must use `Expression::Type { loc: Location::default(), kind: TypeKind::... }`
 - Pattern matching on `Expression::Type` must use `Expression::Type { kind: TypeKind::Numeric(nt), .. }` or `Expression::Type { .. }`
 - The standard library uses Unicode math characters (𝔹, ℕ, ℤ, ℚ, ℝ, ℂ, ⊥, 𝟙) which the lexer handles
+
+
+## Persistent Memory: Upstream D Implementation Gaps
+
+Last updated: 2026-06-05
+
+### Reference Project
+
+- **Location:** `D:\Documents\GitHub\silq` (original Silq compiler in D, ~55K lines)
+- **Maintainer:** Timon Gehr (actively maintained)
+- **Status:** Ahead of silq-rs on multiple critical features (see gaps below)
+
+### Key Gaps Between silq-rs and Upstream D
+
+#### 1. Operator Lowering -- NOT implemented (BIGGEST BOTTLENECK)
+
+- D version has `library/__internal/operators.slq` with 20+ operator overloads:
+  - `__uminus_*`, `__umul_*`, `__uadd_*` (arithmetic)
+  - Uses `@[__operator]` annotation to mark functions as operator lowering targets
+- silq-rs has `library/prelude.slq` with NO operator lowering infrastructure
+- This blocks most prelude operators and complex examples (including Shor's algorithm)
+
+#### 2. No Runtime Type Conversion (evalType / convertTo)
+
+- D version recently (commit 51d261d8) refactored `Interpreter.convertTo()` to extract `evalType()`
+- `evalType()` recursively evaluates compound types at runtime:
+  - Tuple types, vector types, array types
+  - Fixed-width integer types (intN)
+  - Zmod (modular integer) types
+- silq-rs's `qsim.rs` skips type annotations entirely:
+  ```rust
+  Expression::TypeAnnotation { .. } => self.eval(expr)
+  ```
+
+#### 3. Linear Type Checker Is Basic
+
+- D version recently improved borrow tracking from nested scopes (commit 4fe80a6a)
+- D version added dependency tracking for qfree LHS calls (commit 974ef63b)
+- silq-rs's `checker.rs` is basic (const/moved tracking only)
+- silq-rs's `reverse.rs` (automatic adjoint/uncomputation) is a stub
+- No qfree analysis or automatic uncomputation yet
+
+#### 4. Zstar Type Exists but No Operations
+
+- Prelude defines `dat Zstar[N:!N] quantum{}` type
+- D version recently added `__uminus_x`/`__uminus_X` and arithmetic operators for Zstar
+- silq-rs has no support for Zstar operations
+
+### Recommended Development Priority
+
+| Priority | Feature | Impact |
+|----------|---------|--------|
+| 1 | **Operator lowering** | Unlocks most prelude operators and all complex examples |
+| 2 | **evalType / convertTo** | Enables type-aware runtime execution |
+| 3 | **Linear checker improvements** | Borrow tracking, qfree analysis, uncomputation correctness |
+
+### Notes
+
+- D version's recent Shor algorithm rewrites and Ekera postprocessing tests require operator lowering to execute in silq-rs
+- The Shor example is the canonical test case for full pipeline correctness
+- When implementing operator lowering, study the D version's `library/__internal/operators.slq` and the `@[__operator]` annotation mechanism
+- When implementing evalType, study the D version's `Interpreter.evalType()` in `source/silq/backend/interpreter.d`
